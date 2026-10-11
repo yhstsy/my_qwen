@@ -57,34 +57,6 @@ npm run check:api
 
 此命令从本机环境读取配置，检查模型列表，并用随机暗号和加法验证真实聊天及上下文。会产生少量 API 用量，不打印密钥或上游错误原文。`/api/status` 的 `configured` 只表示服务端已填写 Key，不代表服务商当前可用。
 
-## GitHub 开源与公开使用
-
-推荐将代码放在 GitHub，将网站和 API 一起部署到 Vercel。访客通过仓库 README 的在线体验链接打开网站即可使用，无需拿到你的 Key。
-
-```text
-访客浏览器 → 同域 /api/chat → 服务端读取 Secret → 模型供应商
-```
-
-GitHub Pages 只能托管静态页面，不能运行这个私有后端，详见 [GitHub Pages 文档](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)。如果别人 clone/fork 后独立运行，需要配置他们自己的 Key；你的 Key 只供你部署的网站在服务端使用。
-
-1. 将项目源代码上传 GitHub；不要上传 `.env`。仓库已经忽略 `.env`、`.env.*`、`.vercel/`、`.build/`、`dist/` 和 `node_modules/`，只保留不含密钥的 `.env.example`。`.vercelignore` 也排除了本机密钥文件，构建只复制公开资源。
-2. 在 Vercel 导入这个 GitHub 仓库，Framework 选择 **Other**，Node.js 选择 **22.x**，构建命令 `npm run build`，输出目录 `dist`。项目的 `vercel.json` 和 `api/` 函数入口已准备好。
-3. 在项目 **Settings → Environment Variables** 设置以下变量，然后部署或重新部署。`QWEN_API_KEY` 选择 **Secret** 类型，仅添加到 **Production**；不要将主密钥开放给不可信的 PR 预览构建。参考 [Vercel Secret 环境变量文档](https://vercel.com/docs/environment-variables/sensitive-environment-variables)。
-
-   | 变量 | 值 |
-   | --- | --- |
-   | `QWEN_API_KEY` | 你自己的有效密钥，仅服务端读取 |
-   | `QWEN_API_BASE` | 服务商的 OpenAI 兼容 Base URL，例如 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-   | `QWEN_MODEL` | 该 Key 有权调用的准确模型 ID，例如 `qwen-plus` |
-   | `APP_ORIGIN` | 可留空由 Vercel 识别 HTTPS；其他反向代理需设为网站来源，如 `https://chat.example.com`，无末尾 `/` |
-
-4. 部署后检查 `/api/status` 返回 `configured: true` 和模型名称，再发送一条聊天确认真实回复。将部署地址填入 GitHub 仓库的 About/Website 和 README 的在线体验链接。
-5. 公开前，在 Vercel **Firewall** 为路径 `/api/chat` 添加按 IP 限流规则，例如每 IP 每 60 秒允许 5 次、超限返回 429。当前 Hobby 套餐支持一条 WAF 限流规则，具体以 [Vercel 限流文档](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting)和控制台为准。同时在模型供应商处设置总额度或硬性消费上限。
-
-服务端已限制单次输入 40 条消息、合计 24,000 字符、请求体 64 KB，最大输出 2,048 tokens，并对错误脱敏。不向浏览器发送上游认证头，也不允许浏览器指定 Key、Base URL 或模型。跨站 Origin 检查只减少浏览器跨站调用，不能替代鉴权或限流；公开访客仍能消耗你的额度。需要严格控制每位用户用量时，再加登录和持久化配额。
-
-Git 忽略规则不会移除已提交过的秘密。若曾把真实密钥提交到历史记录，应立即在供应商处撤销并更换，不要只删除文件。
-
 ## LMSpeed 共享 Key 实测
 
 2026-10-11，在 [LMSpeed 免费 API Key 页面](https://lmspeed.net/zh/free-api-keys)登录后测试了当时 5 个标记“可用”的条目，每个消耗 20 积分，共 100 积分，余额从 130 变为 30。完整 Key 未写入本文或前端。
