@@ -56,27 +56,3 @@ npm run check:api
 ```
 
 此命令从本机环境读取配置，检查模型列表，并用随机暗号和加法验证真实聊天及上下文。会产生少量 API 用量，不打印密钥或上游错误原文。`/api/status` 的 `configured` 只表示服务端已填写 Key，不代表服务商当前可用。
-
-## LMSpeed 共享 Key 实测
-
-2026-10-11，在 [LMSpeed 免费 API Key 页面](https://lmspeed.net/zh/free-api-keys)登录后测试了当时 5 个标记“可用”的条目，每个消耗 20 积分，共 100 积分，余额从 130 变为 30。完整 Key 未写入本文或前端。
-
-| 服务商 / 脱敏条目 | 实测结果 |
-| --- | --- |
-| `api.senseaudio.cn` / `sk-Hii***D5Dd` | `/models` 返回成功；聊天返回 HTTP 400，提示计费账户被冻结 |
-| `api.agnes-ai.cn` / `sk-rbx***C8SX` | `/models` 返回成功；起初多次 HTTP 429（今日文本额度已用完、每分钟限速一次），等待限流窗口后随机暗号及加法验证成功；可临时使用 |
-| `larprouter.com` / `lrsk-6***650d` | `/models` 返回 HTTP 401 |
-| `ai.furry.vg` / `sk-BrP***mwzI` | `/models` 返回 HTTP 403 |
-| `larprouter.com` / `lrsk-5***b0a8` | `/models` 返回 HTTP 401 |
-
-以上是当时实测，不代表这些服务商的全部 Key。Agnes 的 `agnes-2.5-flash` 已通过命令行随机暗号上下文测试，以及网页端真实回复验证（返回“柚子642”，正确计算 `28 + 35 = 63`）。当前本地 `.env` 配置了这个临时接口；它是 Agnes 模型，并非通义千问模型。共享 Key 本身会被其他领取者看到；即使你的网站保密，也无法把共享 Key 变成私有密钥。LMSpeed 也说明共享资源可能限速、失效，不建议用于生产。长期公开服务应使用你自己创建、可撤销和设限的密钥。
-
-## 验证与构建
-
-```powershell
-npm run typecheck
-npm test
-npm run build
-```
-
-`npm test` 会先完整编译，再运行编译后的 TS 测试。`dist/` 是静态页面。需要真实对话时应通过 `npm start` 使用 Node 服务，或按上面的 Vercel 方案同时部署 `api/` 函数，不要只发布静态文件。
