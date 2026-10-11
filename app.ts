@@ -1,8 +1,44 @@
-import { escapeHtml as escape, renderMessage, formatSize } from './chat.js';
+import { escapeHtml as escape, renderMessage, formatSize } from './chat.ts';
+import type { ChatMessage } from './chat.ts';
 
-const $ = selector => document.querySelector(selector);
-const $$ = selector => [...document.querySelectorAll(selector)];
-const icons = {
+type Mode = 'daily' | 'work';
+interface Attachment { id: string; name: string; size: number; type: string; text: string; }
+interface FileRecord extends Omit<Attachment,'text'> { date: string; }
+interface StoredMessage extends ChatMessage { files?: Pick<Attachment,'name' | 'text'>[]; tool?: string; }
+interface Conversation { id: string; title: string; mode?: Mode; messages: StoredMessage[]; createdAt?: number; }
+interface Task { id: string; title: string; content: string; time: string; }
+interface Project { id: string; title: string; }
+interface Panel { title: string; description: string; icon?: string; items?: [string,string,string][]; }
+interface SpeechRecognitionLike {
+  lang: string; continuous: boolean; interimResults: boolean;
+  onresult: ((event: {results: ArrayLike<ArrayLike<{transcript: string}>>}) => void) | null;
+  onerror: ((event: {error: string}) => void) | null;
+  onend: (() => void) | null;
+  start(): void; stop(): void;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  }
+}
+interface ElementMap {
+  '#prompt': HTMLTextAreaElement;
+  '#dialog': HTMLDialogElement;
+  '#composer': HTMLFormElement;
+  '#file-input': HTMLInputElement;
+  '#search-input': HTMLInputElement;
+  '#task-form': HTMLFormElement;
+  '#project-form': HTMLFormElement;
+  '#send-button': HTMLButtonElement;
+  '#welcome-icon': HTMLImageElement;
+  '#promo-image': HTMLImageElement;
+}
+function $<K extends keyof ElementMap>(selector: K): ElementMap[K];
+function $(selector: string): HTMLElement;
+function $(selector: string): HTMLElement { return document.querySelector<HTMLElement>(selector)!; }
+const $$ = (selector: string): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(selector)];
+const icons: Record<string,string> = {
   sidebar:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18m7-13-4 4 4 4"/>',
   plus:'<path d="M12 3v18M3 12h18"/>',
   'search-chat':'<path d="M8 4H5a2 2 0 0 0-2 2v11l4-3h2m5-10h5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6"/><circle cx="11" cy="7" r="4"/><path d="m14 10 3 3"/>',
@@ -42,31 +78,31 @@ const icons = {
   trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
   file:'<path d="M14 2H5v20h14V7zm0 0v6h5M8 12h8M8 16h6"/>',
 };
-function icon(name) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.spark}</svg>`; }
-function hydrateIcons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => el.innerHTML = icon(el.dataset.icon)); }
+function icon(name: string = 'spark'): string { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.spark}</svg>`; }
+function hydrateIcons(root: ParentNode = document): void { root.querySelectorAll<HTMLElement>('[data-icon]').forEach(el => el.innerHTML = icon(el.dataset.icon)); }
 hydrateIcons();
 
-function readStorage(key, fallback) {
-  try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(fallback) && !Array.isArray(value) ? fallback : value ?? fallback; } catch { return fallback; }
+function readStorage<T>(key: string, fallback: T): T {
+  try { const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null'); return Array.isArray(fallback) && !Array.isArray(value) ? fallback : (value ?? fallback) as T; } catch { return fallback; }
 }
-let conversations = readStorage('qwen-conversations', []).filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages));
-let tasks = readStorage('qwen-tasks', []);
-let projects = readStorage('qwen-projects', []);
-let files = readStorage('qwen-files', []);
-let currentId = null;
-let mode = 'daily';
+let conversations = readStorage<Conversation[]>('qwen-conversations', []).filter(item => item && typeof item.id === 'string' && Array.isArray(item.messages));
+let tasks = readStorage<Task[]>('qwen-tasks', []);
+let projects = readStorage<Project[]>('qwen-projects', []);
+let files = readStorage<FileRecord[]>('qwen-files', []);
+let currentId: string | null = null;
+let mode: Mode = 'daily';
 let activeTool = '';
 let speed = '快速';
 let selectedProject = '';
-let attachments = [];
+let attachments: Attachment[] = [];
 let busy = false;
-let abortController;
-let typingTimer;
-let activePopover;
-let toastTimer;
+let abortController: AbortController | undefined;
+let typingTimer: number | undefined;
+let activePopover: HTMLElement | null = null;
+let toastTimer: number | undefined;
 let apiAvailable = false;
 let apiModel = '';
-let recognition;
+let recognition: SpeechRecognitionLike | undefined;
 let isComposing = false;
 let slide = 2;
 const app = $('#app');
@@ -77,20 +113,20 @@ const home = $('#home');
 const composerWrap = $('#composer-wrap');
 const messagesElement = $('#messages');
 const modelNames = ['Qwen3.7-千问', 'Qwen3.7-Max', 'Qwen3.7-Plus'];
-const toolIcons = {'工作助理':'spark','AI生视频':'video','PPT创作':'presentation','AI生图':'image','代码':'code','翻译':'translate','AI写作':'write','录音纪要':'mic','研究':'research','千问高考':'book','音视频速读':'video'};
-const placeholders = {'AI生图':'描述你想生成的画面','AI生视频':'描述你想创作的视频','PPT创作':'输入 PPT 主题，让想法变成演示文稿','代码':'描述你的编程需求','翻译':'输入需要翻译的内容','AI写作':'告诉我你想写什么','录音纪要':'粘贴录音文字，整理重点与待办','研究':'告诉我你想深入研究的问题','千问高考':'输入你的学习问题','音视频速读':'粘贴音视频文字，快速提炼重点'};
+const toolIcons: Record<string,string> = {'工作助理':'spark','AI生视频':'video','PPT创作':'presentation','AI生图':'image','代码':'code','翻译':'translate','AI写作':'write','录音纪要':'mic','研究':'research','千问高考':'book','音视频速读':'video'};
+const placeholders: Record<string,string> = {'AI生图':'描述你想生成的画面','AI生视频':'描述你想创作的视频','PPT创作':'输入 PPT 主题，让想法变成演示文稿','代码':'描述你的编程需求','翻译':'输入需要翻译的内容','AI写作':'告诉我你想写什么','录音纪要':'粘贴录音文字，整理重点与待办','研究':'告诉我你想深入研究的问题','千问高考':'输入你的学习问题','音视频速读':'粘贴音视频文字，快速提炼重点'};
 const banners = [
   { image:'work', title:'工作任务就交给千问工作助理', description:'专业技能搭配行业数据连接器，助理选的好，当然下班早', action:'立即体验' },
   { image:'input', title:'千问输入法 App 全新上线', description:'最快 300 字/分，说话即成稿，支持 9 种方言，无广告', action:'立即下载体验' },
   { image:'notes', title:'千问一键生成录音纪要', description:'断网也能稳定录，纪要自动整理，重要内容一句不漏', action:'立即下载体验' },
 ];
 
-function toast(message) { clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false; toastTimer = setTimeout(() => $('#toast').hidden = true, 3200); }
-function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { toast('浏览器存储空间不足，本次内容暂未保存。'); } }
+function toast(message: string): void { window.clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false; toastTimer = window.setTimeout(() => $('#toast').hidden = true, 3200); }
+function save(key: string, value: unknown): void { try { localStorage.setItem(key, JSON.stringify(value)); } catch { toast('浏览器存储空间不足，本次内容暂未保存。'); } }
 function saveConversations() { save('qwen-conversations', conversations); renderHistory(); }
 function currentChat() { return conversations.find(chat => chat.id === currentId); }
 function closePopover() { popover.hidden = true; activePopover?.setAttribute('aria-expanded', 'false'); activePopover = null; }
-function openMenu(anchor, html, above = false) {
+function openMenu(anchor: HTMLElement, html: string, above = false) {
   if (activePopover === anchor && !popover.hidden) { closePopover(); return; }
   closePopover(); activePopover = anchor; anchor.setAttribute('aria-expanded', 'true');
   popover.innerHTML = html; popover.hidden = false;
@@ -100,27 +136,27 @@ function openMenu(anchor, html, above = false) {
   popover.style.top = `${Math.max(8, Math.min(above ? rect.top - height - 8 : rect.bottom + 6, innerHeight - height - 8))}px`;
   popover.querySelector('button')?.focus({ preventScroll: true });
 }
-function menuItem(label, iconName, attrs = '', selected = false, description = '') {
+function menuItem(label: string, iconName: string, attrs = '', selected = false, description = '') {
   return `<button class="menu-item${selected ? ' selected' : ''}" role="menuitem" ${attrs}>${icon(iconName)}<span>${escape(label)}${description ? `<p class="menu-description">${escape(description)}</p>` : ''}</span>${selected ? `<span class="check">${icon('check')}</span>` : ''}</button>`;
 }
-function showModelMenu(anchor) { openMenu(anchor, `<div class="menu-heading">${apiAvailable ? '当前服务端模型' : '选择模型'}</div>` + (apiAvailable ? [apiModel] : modelNames).map(name => menuItem(name, 'spark', `data-model="${escape(name)}"`, name === $('#model-name').textContent)).join('')); }
-$('#model-button').onclick = event => showModelMenu(event.currentTarget);
-$('#work-model-button').onclick = event => showModelMenu(event.currentTarget);
-$('#speed-button').onclick = event => openMenu(event.currentTarget, ['快速','思考','深度研究'].map((name, i) => menuItem(name, ['bolt','spark','research'][i], `data-speed="${name}"`, speed === name, ['轻快响应，适合日常交流','深入思考，解决复杂问题','系统梳理，探索更多信息'][i])).join(''), true);
-$('#more-button').onclick = event => openMenu(event.currentTarget, Object.keys(toolIcons).filter(tool => {
+function showModelMenu(anchor: HTMLElement) { openMenu(anchor, `<div class="menu-heading">${apiAvailable ? '当前服务端模型' : '选择模型'}</div>` + (apiAvailable ? [apiModel] : modelNames).map(name => menuItem(name, 'spark', `data-model="${escape(name)}"`, name === $('#model-name').textContent)).join('')); }
+$('#model-button').onclick = event => showModelMenu(event.currentTarget as HTMLElement);
+$('#work-model-button').onclick = event => showModelMenu(event.currentTarget as HTMLElement);
+$('#speed-button').onclick = event => openMenu(event.currentTarget as HTMLElement, ['快速','思考','深度研究'].map((name, i) => menuItem(name, ['bolt','spark','research'][i], `data-speed="${name}"`, speed === name, ['轻快响应，适合日常交流','深入思考，解决复杂问题','系统梳理，探索更多信息'][i])).join(''), true);
+$('#more-button').onclick = event => openMenu(event.currentTarget as HTMLElement, Object.keys(toolIcons).filter(tool => {
   const inline = $$('#daily-tools [data-tool]').find(button => button.dataset.tool === tool);
   return !inline || !inline.getClientRects().length;
 }).map(tool => menuItem(tool, toolIcons[tool], `data-tool="${tool}"`, activeTool === tool)).join(''));
-$('#attach-button').onclick = event => openMenu(event.currentTarget, menuItem('上传文件或图片', 'files', 'data-upload') + '<div class="menu-heading">支持文档、表格和图片，单个文件不超过 10 MB</div>', true);
-$('#settings-button').onclick = event => openMenu(event.currentTarget, '<div class="menu-heading">外观设置</div>' + [['light','浅色模式','sun'],['dark','深色模式','moon'],['system','跟随系统','monitor']].map(([value,label,glyph]) => menuItem(label,glyph,`data-theme="${value}"`,readStorage('qwen-theme','light') === value)).join(''), true);
+$('#attach-button').onclick = event => openMenu(event.currentTarget as HTMLElement, menuItem('上传文件或图片', 'files', 'data-upload') + '<div class="menu-heading">支持文档、表格和图片，单个文件不超过 10 MB</div>', true);
+$('#settings-button').onclick = event => openMenu(event.currentTarget as HTMLElement, '<div class="menu-heading">外观设置</div>' + [['light','浅色模式','sun'],['dark','深色模式','moon'],['system','跟随系统','monitor']].map(([value,label,glyph]) => menuItem(label,glyph,`data-theme="${value}"`,readStorage('qwen-theme','light') === value)).join(''), true);
 $('#cloud-button').onclick = () => toast('云端工作模式。连接真实模型后可处理工作任务。');
 
-function setTheme(theme, persist = true) {
+function setTheme(theme: string, persist = true) {
   document.documentElement.dataset.theme = theme === 'system' ? (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light') : theme;
   if (persist) save('qwen-theme', theme);
 }
-setTheme(readStorage('qwen-theme','light'), false);
-matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (readStorage('qwen-theme','light') === 'system') setTheme('system',false); });
+setTheme(readStorage<string>('qwen-theme','light'), false);
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (readStorage<string>('qwen-theme','light') === 'system') setTheme('system',false); });
 
 function toggleSidebar() {
   closePopover();
@@ -147,9 +183,9 @@ function goHome() {
 $('#new-chat').onclick = goHome;
 $('#brand').onclick = goHome;
 
-function setMode(value) {
+function setMode(value: Mode) {
   mode = value; activeTool = ''; app.classList.toggle('work-mode', mode === 'work');
-  $$('[data-mode]').forEach(button => button.setAttribute('aria-selected', button.dataset.mode === mode));
+  $$('[data-mode]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.mode === mode)));
   $('#daily-nav').hidden = mode === 'work'; $('#work-nav').hidden = mode !== 'work';
   $('#daily-tools').hidden = mode === 'work'; $('#work-tools').hidden = mode !== 'work';
   $('#work-suggestions').hidden = mode !== 'work'; $('#promo-wrap').hidden = mode === 'work';
@@ -161,12 +197,12 @@ function setMode(value) {
   $('#more-button').innerHTML = icon('more') + '更多'; $('#more-button').setAttribute('aria-pressed','false');
   goHome();
 }
-$$('[data-mode]').forEach(button => button.onclick = () => setMode(button.dataset.mode));
-function selectTool(tool) {
+$$('[data-mode]').forEach(button => button.onclick = () => setMode(button.dataset.mode as Mode));
+function selectTool(tool: string) {
   closePopover();
   if (tool === '工作助理') { setMode('work'); return; }
   activeTool = activeTool === tool ? '' : tool;
-  $$('[data-tool]').forEach(button => button.setAttribute('aria-pressed', button.dataset.tool === activeTool));
+  $$('[data-tool]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tool === activeTool)));
   prompt.placeholder = placeholders[activeTool] || (mode === 'work' ? '今天一起做点什么？' : '向千问提问');
   if (activeTool && !$$('#daily-tools [data-tool]').some(button => button.dataset.tool === activeTool && button.getClientRects().length)) {
     $('#more-button').innerHTML = icon(toolIcons[activeTool]) + escape(activeTool);
@@ -183,7 +219,7 @@ function renderHistory(query = '') {
   $('#history').innerHTML = historyHtml();
   if ($('#search-results')) $('#search-results').innerHTML = historyHtml(query);
 }
-function openChat(id) {
+function openChat(id: string) {
   if (busy) stopGeneration();
   const chat = conversations.find(item => item.id === id); if (!chat) return;
   if (chat.mode !== mode) setMode(chat.mode || 'daily');
@@ -206,7 +242,7 @@ prompt.addEventListener('compositionstart', () => isComposing = true);
 prompt.addEventListener('compositionend', () => isComposing = false);
 prompt.onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !isComposing) { event.preventDefault(); if (!$('#send-button').disabled) $('#composer').requestSubmit(); } };
 
-async function addFiles(incoming) {
+async function addFiles(incoming: Iterable<File>) {
   closePopover();
   for (const file of incoming) {
     if (attachments.length >= 5) { toast('每次最多添加 5 个附件。'); break; }
@@ -222,69 +258,70 @@ function renderAttachments() {
   $('#attachments').hidden = !attachments.length;
   $('#attachments').innerHTML = attachments.map(file => `<div class="attachment">${icon('file')}<div><div class="attachment-name" title="${escape(file.name)}">${escape(file.name)}</div><div class="attachment-size">${formatSize(file.size)}</div></div><button type="button" class="icon-button" data-remove-file="${file.id}" aria-label="移除 ${escape(file.name)}">${icon('close')}</button></div>`).join('');
 }
-$('#file-input').onchange = async event => { await addFiles([...event.target.files]); event.target.value = ''; };
+$('#file-input').onchange = async () => { const input = $('#file-input'); await addFiles(input.files || []); input.value = ''; };
 $('#composer').addEventListener('dragover', event => { event.preventDefault(); $('#composer').classList.add('drag-over'); });
 $('#composer').addEventListener('dragleave', () => $('#composer').classList.remove('drag-over'));
-$('#composer').addEventListener('drop', event => { event.preventDefault(); $('#composer').classList.remove('drag-over'); addFiles([...event.dataTransfer.files]); });
+$('#composer').addEventListener('drop', event => { event.preventDefault(); $('#composer').classList.remove('drag-over'); addFiles(event.dataTransfer?.files || []); });
 
-function setBusy(value) {
+function setBusy(value: boolean) {
   busy = value; $('#send-button').innerHTML = icon(value ? 'stop' : 'arrow-up');
   $('#send-button').setAttribute('aria-label', value ? '停止生成' : '发送消息');
   updateSendButton();
 }
 function stopGeneration() {
-  abortController?.abort(); clearInterval(typingTimer);
+  abortController?.abort(); window.clearInterval(typingTimer);
   const chat = currentChat();
-  if (chat?.messages.at(-1)?.role === 'assistant' && !chat.messages.at(-1).content) chat.messages.at(-1).content = '已停止生成。';
+  const last = chat?.messages.at(-1);
+  if (last?.role === 'assistant' && !last.content) last.content = '已停止生成。';
   setBusy(false); saveConversations(); renderMessages();
 }
 $('#composer').onsubmit = async event => {
   event.preventDefault(); if (busy) { stopGeneration(); return; }
   const content = prompt.value.trim(); if (!content && !attachments.length) return;
   if (!currentChat()) {
-    const chat = {id:crypto.randomUUID(),title:(content || attachments[0].name).slice(0,26),mode,messages:[],createdAt:Date.now()};
+    const chat: Conversation = {id:crypto.randomUUID(),title:(content || attachments[0].name).slice(0,26),mode,messages:[],createdAt:Date.now()};
     conversations.unshift(chat); currentId = chat.id;
     home.hidden = true; $('#feature-panel').hidden = true; $('#conversation').hidden = false; $('#conversation-composer').append(composerWrap);
   }
-  const chat = currentChat();
+  const chat = currentChat(); if (!chat) return;
   const inputFiles = attachments.map(file => ({name:file.name,text:file.text}));
   chat.messages.push({role:'user',content:content || '请查看附件',files:inputFiles,tool:activeTool});
   resetInput(); hideMobileSidebar(); saveConversations();
   await generateReply(chat);
 };
-async function generateReply(chat) {
+async function generateReply(chat: Conversation) {
   setBusy(true); abortController = new AbortController();
   const controller = abortController;
   const history = chat.messages.slice(-40).map(message => ({role:message.role,content:message.content + (message.files?.length ? '\n\n附件：\n' + message.files.map(file => file.text ? `文件 ${file.name}：\n${file.text}` : `文件 ${file.name}（当前仅有文件名，未解析文件内容）`).join('\n') : '')}));
-  const reply = {role:'assistant',content:''}; chat.messages.push(reply); renderMessages();
+  const reply: StoredMessage = {role:'assistant',content:''}; chat.messages.push(reply); renderMessages();
   try {
-    let answer;
+    let answer: string;
     if (apiAvailable) {
       if (['AI生图','AI生视频'].includes(activeTool)) {
         answer = '当前接入的是文字对话模型，暂不支持直接生成图片或视频。可以切换到文字模式，先完善创作提示词。';
       } else {
         const response = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history,mode:speed,tool:activeTool}),signal:controller.signal});
-        const result = await response.json(); if (!response.ok) throw new Error(result.error || '模型服务暂时不可用，请稍后重试。'); answer = result.content;
+        const result: {content: string; error?: string} = await response.json(); if (!response.ok) throw new Error(result.error || '模型服务暂时不可用，请稍后重试。'); answer = result.content;
       }
     } else {
       answer = '这是本地演示回复。当前页面尚未连接 AI 模型，暂时无法回答问题或生成内容。\n\n你可以体验消息发送、新建对话、历史记录、附件选择和工作模式；对话会保存在当前浏览器中。\n\n连接模型服务后，即可在这个界面中进行真实的 AI 对话。';
     }
     if (controller.signal.aborted) return;
     let offset = 0;
-    typingTimer = setInterval(() => {
+    typingTimer = window.setInterval(() => {
       offset = Math.min(answer.length,offset + (apiAvailable ? 12 : 5)); reply.content = answer.slice(0,offset);
       const node = messagesElement.querySelector(`[data-message-index="${chat.messages.length - 1}"]`);
-      if (node) { node.innerHTML = renderMessage(reply.content); node.parentElement.querySelector('.thinking')?.remove(); }
+      if (node) { node.innerHTML = renderMessage(reply.content); node.parentElement?.querySelector('.thinking')?.remove(); }
       if (messagesElement.scrollHeight - messagesElement.scrollTop - messagesElement.clientHeight < 200) scrollToBottom();
-      if (offset === answer.length) { clearInterval(typingTimer); setBusy(false); saveConversations(); renderMessages(); }
+      if (offset === answer.length) { window.clearInterval(typingTimer); setBusy(false); saveConversations(); renderMessages(); }
     },22);
   } catch(error) {
-    if (error.name === 'AbortError') return;
-    reply.content = `暂时无法完成回复：${error.message}`; setBusy(false); saveConversations(); renderMessages();
+    if (error instanceof Error && error.name === 'AbortError') return;
+    reply.content = `暂时无法完成回复：${error instanceof Error ? error.message : String(error)}`; setBusy(false); saveConversations(); renderMessages();
   }
 }
 
-function showDialog(type) {
+function showDialog(type: string) {
   closePopover();
   const content = $('#dialog-content');
   const intro = '<img class="dialog-logo" src="/assets/qwen.svg" alt="千问">';
@@ -296,10 +333,10 @@ function showDialog(type) {
   if (type === 'search') content.innerHTML = `<h2>搜索对话</h2><input class="search-input" id="search-input" placeholder="搜索历史对话" aria-label="搜索历史对话"><div id="search-results"></div>`;
   if (type === 'voice') content.innerHTML = `<h2>语音输入</h2><p>使用麦克风，将你的想法转成文字。</p><button id="start-voice" class="primary-button full">${icon('mic')}开始语音输入</button><p class="fine-print">开始后浏览器会请求麦克风权限。语音识别由浏览器提供，可能使用浏览器厂商的在线服务。</p>`;
   if (!dialog.open) dialog.showModal();
-  if (type === 'search') { renderHistory(); $('#search-input').oninput = event => renderHistory(event.target.value); $('#search-input').focus(); }
+  if (type === 'search') { renderHistory(); $('#search-input').oninput = event => renderHistory((event.currentTarget as HTMLInputElement).value); $('#search-input').focus(); }
   if ($('#local-login')) $('#local-login').onclick = () => { dialog.close(); $('.login-button').textContent = '本地用户'; toast('已进入本地模式，对话保存在当前浏览器。'); };
-  if ($('#task-form')) $('#task-form').onsubmit = event => { event.preventDefault(); const data = new FormData(event.target); if (new Date(data.get('time')).getTime() <= Date.now()) { toast('请选择未来的提醒时间。'); return; } tasks.unshift({id:crypto.randomUUID(),title:data.get('title'),content:data.get('content'),time:data.get('time')}); save('qwen-tasks',tasks); renderTasks(); dialog.close(); toast('任务已保存到本地。'); };
-  if ($('#project-form')) $('#project-form').onsubmit = event => { event.preventDefault(); const title = new FormData(event.target).get('title').trim(); if (!title) return; projects.unshift({id:crypto.randomUUID(),title}); save('qwen-projects',projects); dialog.close(); showPanel('projects'); };
+  if ($('#task-form')) $('#task-form').onsubmit = event => { event.preventDefault(); const data = new FormData(event.currentTarget as HTMLFormElement); const time = String(data.get('time') ?? ''); if (new Date(time).getTime() <= Date.now()) { toast('请选择未来的提醒时间。'); return; } tasks.unshift({id:crypto.randomUUID(),title:String(data.get('title') ?? ''),content:String(data.get('content') ?? ''),time}); save('qwen-tasks',tasks); renderTasks(); dialog.close(); toast('任务已保存到本地。'); };
+  if ($('#project-form')) $('#project-form').onsubmit = event => { event.preventDefault(); const title = String(new FormData(event.currentTarget as HTMLFormElement).get('title') ?? '').trim(); if (!title) return; projects.unshift({id:crypto.randomUUID(),title}); save('qwen-projects',projects); dialog.close(); showPanel('projects'); };
   if ($('#start-voice')) $('#start-voice').onclick = startVoice;
 }
 $('.dialog-close').onclick = () => dialog.close();
@@ -307,14 +344,14 @@ dialog.addEventListener('click',event => { if (event.target === dialog) { const 
 $('#search-history').onclick = () => showDialog('search');
 function renderTasks() { $('#task-list').innerHTML = tasks.map(task => `<button class="nav-item" data-show-task="${escape(task.id)}" title="${escape(task.title)}">${icon('check')}${escape(task.title)}</button>`).join(''); }
 
-const panels = {
+const panels: Record<string,Panel> = {
   space: {title:'云空间',description:'你的灵感、资料和知识，都在这里。',icon:'files'},
   create: {title:'千问创作',description:'从一个想法开始，把灵感变成作品。',items:[['AI生图','描述画面，让灵感成为图像','image'],['AI生视频','让故事动起来，创作属于你的精彩','video'],['PPT创作','从主题到大纲，让表达更出色','presentation'],['AI写作','用文字记录灵感，让创作更轻松','write'],['代码','一起把想法变成可以运行的代码','code'],['翻译','跨越语言，让表达自由流动','translate']]},
   skills: {title:'技能',description:'为工作搭配专业技能，轻松处理不同任务。',items:[['写作助手','梳理思路，完成文案与内容创作','write'],['编程助手','代码解释、问题排查和程序设计','code'],['研究助手','拆解问题，整理研究方向和资料','research'],['PPT创作','生成结构清晰的演示文稿大纲','presentation'],['翻译助手','翻译润色，让沟通更加自然','translate'],['会议纪要','从文字中提炼重点、决策与待办','mic']]},
   connect: {title:'连接',description:'连接常用工具，将信息带入你的工作流程。',items:[['本地文件','选择文档、表格或图片作为任务参考','files'],['知识资料','将文字资料粘贴到对话，快速整理要点','book'],['更多连接','此演示尚未接入外部应用','connect']]},
   projects: {title:'项目',description:'把相关工作放在一起，让每一步都井井有条。',icon:'folder'},
 };
-function showPanel(name) {
+function showPanel(name: string) {
   const panel = panels[name]; if (!panel) return;
   if (busy) stopGeneration(); closePopover(); hideMobileSidebar();
   home.hidden = true; $('#conversation').hidden = true; const target = $('#feature-panel'); target.hidden = false;
@@ -325,17 +362,17 @@ function showPanel(name) {
   if (name === 'projects') content = projects.length ? projects.map(project => `<div class="project-list-row"><button class="project-row" data-project="${project.id}">${icon('folder')}${escape(project.title)}</button><button class="icon-button" data-delete-project="${project.id}" aria-label="删除项目：${escape(project.title)}">${icon('trash')}</button></div>`).join('') : `<div class="empty-panel">${icon('folder')}创建你的第一个工作项目</div>`;
   target.innerHTML = `<div class="panel-heading"><h1>${panel.title}</h1>${name === 'space' ? '<button class="primary-button" data-upload>添加文件</button>' : name === 'projects' ? '<button class="primary-button" data-dialog="project">新建项目</button>' : ''}</div><p class="panel-subtitle">${panel.description}${name === 'space' ? '<br>本地演示仅保存文件记录；文本附件可供模型读取，其他文件暂未解析。' : ''}</p>${content}`;
 }
-$('#project-select').onclick = event => openMenu(event.currentTarget, '<div class="menu-heading">工作项目</div>' + (projects.map(project => menuItem(project.title,'folder',`data-project="${project.id}"`,selectedProject === project.id)).join('') || '<div class="menu-heading">还没有工作项目</div>') + menuItem('新建项目','plus','data-dialog="project"'));
+$('#project-select').onclick = event => openMenu(event.currentTarget as HTMLElement, '<div class="menu-heading">工作项目</div>' + (projects.map(project => menuItem(project.title,'folder',`data-project="${project.id}"`,selectedProject === project.id)).join('') || '<div class="menu-heading">还没有工作项目</div>') + menuItem('新建项目','plus','data-dialog="project"'));
 
-function setSlide(value) {
+function setSlide(value: number) {
   slide = value; const banner = banners[value];
   $('#promo-image').src = `/assets/banner-${banner.image}.webp`; $('#promo-image').alt = banner.title;
   $('#promo-title').textContent = banner.title; $('#promo-description').textContent = banner.description; $('#promo-cta').textContent = banner.action;
-  $$('[data-slide]').forEach(button => { button.classList.toggle('active',Number(button.dataset.slide) === slide); button.setAttribute('aria-pressed', Number(button.dataset.slide) === slide); });
+  $$('[data-slide]').forEach(button => { button.classList.toggle('active',Number(button.dataset.slide) === slide); button.setAttribute('aria-pressed', String(Number(button.dataset.slide) === slide)); });
 }
 $$('[data-slide]').forEach(button => button.onclick = () => setSlide(Number(button.dataset.slide)));
-let rotating = setInterval(() => { if (!home.hidden && mode === 'daily' && !document.hidden && !$('#promo-wrap').matches(':hover')) setSlide((slide + 1) % 3); }, 6500);
-$('#promo-close').onclick = () => { $('#promo-wrap').hidden = true; clearInterval(rotating); };
+let rotating = window.setInterval(() => { if (!home.hidden && mode === 'daily' && !document.hidden && !$('#promo-wrap').matches(':hover')) setSlide((slide + 1) % 3); }, 6500);
+$('#promo-close').onclick = () => { $('#promo-wrap').hidden = true; window.clearInterval(rotating); };
 $('#promo-cta').onclick = () => slide === 0 ? setMode('work') : showDialog('download');
 
 function startVoice() {
@@ -350,7 +387,8 @@ function startVoice() {
 $('#voice-button').onclick = () => { if ($('#voice-button').classList.contains('recording')) recognition?.stop(); else showDialog('voice'); };
 
 document.addEventListener('click',async event => {
-  const target = event.target.closest('button, a');
+  if (!(event.target instanceof Element)) return;
+  const target = event.target.closest<HTMLElement>('button, a');
   if (!popover.hidden && !popover.contains(event.target) && !activePopover?.contains(event.target)) closePopover();
   if (!target) return;
   if (target.dataset.tool) selectTool(target.dataset.tool);
@@ -365,9 +403,9 @@ document.addEventListener('click',async event => {
   if (target.dataset.deleteChat) { if (target.dataset.deleteChat === currentId) goHome(); conversations = conversations.filter(chat => chat.id !== target.dataset.deleteChat); saveConversations(); }
   if (target.dataset.prompt) { prompt.value = target.dataset.prompt; resizePrompt(); updateSendButton(); prompt.focus(); }
   if (target.dataset.copy !== undefined) {
-    try { await navigator.clipboard.writeText(currentChat().messages[Number(target.dataset.copy)].content); toast('回答已复制。'); } catch { toast('复制失败，请选中文字后复制。'); }
+    try { await navigator.clipboard.writeText(currentChat()!.messages[Number(target.dataset.copy)].content); toast('回答已复制。'); } catch { toast('复制失败，请选中文字后复制。'); }
   }
-  if (target.dataset.retry !== undefined && !busy) { const chat = currentChat(); chat.messages = chat.messages.slice(0,Number(target.dataset.retry)); await generateReply(chat); }
+  if (target.dataset.retry !== undefined && !busy) { const chat = currentChat(); if (!chat) return; chat.messages = chat.messages.slice(0,Number(target.dataset.retry)); await generateReply(chat); }
   if (target.dataset.project) {
     selectedProject = target.dataset.project; $('#project-label').textContent = projects.find(project => project.id === selectedProject)?.title || '选择工作项目';
     closePopover(); goHome();
@@ -377,7 +415,7 @@ document.addEventListener('click',async event => {
     if (value === '更多连接') { toast('当前为本地演示，尚未接入外部应用。'); return; }
     goHome(); $('#legal').hidden = false;
     if (value === '本地文件') $('#file-input').click();
-    else selectTool({'写作助手':'AI写作','编程助手':'代码','研究助手':'研究','翻译助手':'翻译','会议纪要':'录音纪要','知识资料':'研究'}[value] || value);
+    else { const skillTools: Record<string,string> = {'写作助手':'AI写作','编程助手':'代码','研究助手':'研究','翻译助手':'翻译','会议纪要':'录音纪要','知识资料':'研究'}; selectTool(skillTools[value] || value); }
   }
   if (target.dataset.deleteFile) { files = files.filter(file => file.id !== target.dataset.deleteFile); save('qwen-files',files); showPanel('space'); }
   if (target.dataset.deleteProject) {
@@ -386,7 +424,7 @@ document.addEventListener('click',async event => {
     showPanel('projects');
   }
   if (target.dataset.showTask) {
-    const task = tasks.find(item => item.id === target.dataset.showTask);
+    const task = tasks.find(item => item.id === target.dataset.showTask); if (!task) return;
     $('#dialog-content').innerHTML = `<h2>${escape(task.title)}</h2><p>${escape(task.content)}</p><p>计划时间：${escape(task.time.replace('T',' '))}</p><p class="fine-print">本地记录，不会在后台自动执行。</p><button class="secondary-button full" data-delete-task="${task.id}">删除任务</button>`; dialog.showModal();
   }
   if (target.dataset.deleteTask) { tasks = tasks.filter(task => task.id !== target.dataset.deleteTask); save('qwen-tasks',tasks); renderTasks(); dialog.close(); }
@@ -396,7 +434,7 @@ document.addEventListener('keydown',event => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'k') { event.preventDefault(); showDialog('search'); }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'o') { event.preventDefault(); goHome(); }
   if (!popover.hidden && ['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
-    const options = [...popover.querySelectorAll('button')]; const index = options.indexOf(document.activeElement);
+    const options = [...popover.querySelectorAll('button')]; const index = options.findIndex(option => option === document.activeElement);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
     event.preventDefault(); options[next]?.focus();
   }
@@ -404,9 +442,9 @@ document.addEventListener('keydown',event => {
 window.addEventListener('resize',() => { closePopover(); syncSidebar(); });
 window.addEventListener('beforeunload',() => { if (busy) saveConversations(); });
 renderHistory(); renderTasks(); syncSidebar();
-fetch('/api/status').then(response => response.ok ? response.json() : null).then(status => {
+fetch('/api/status').then(async response => response.ok ? await response.json() as {configured: boolean; model: string | null} : null).then(status => {
   apiAvailable = !!status?.configured;
-  if (apiAvailable && typeof status.model === 'string') {
+  if (apiAvailable && typeof status?.model === 'string') {
     apiModel = status.model;
     $('#model-name').textContent = apiModel;
     $('#work-model-button').innerHTML = escape(apiModel) + icon('chevron');

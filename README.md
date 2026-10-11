@@ -1,18 +1,30 @@
 # 千问网站界面复刻
 
-参照 [千问官网](https://www.qianwen.com/) 2026-10-11 可见的桌面首页与工作模式制作。使用原生 HTML、CSS 和 JavaScript，Node.js 提供本地服务，无第三方运行依赖。
+参照 [千问官网](https://www.qianwen.com/) 2026-10-11 可见的桌面首页与工作模式制作。使用原生 HTML、CSS 和 TypeScript，Node.js 提供本地服务，无第三方业务运行依赖。TypeScript 和 Node.js 类型定义仅作为开发、构建依赖。
 
 **在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](DEPLOYMENT.md)。
 
 ## 启动
 
-需要 Node.js 22 或更高版本，无需安装依赖。
+需要 Node.js 22.x。首次使用先安装锁定的开发依赖：
 
 ```powershell
+npm ci
 npm run dev
 ```
 
 打开 http://127.0.0.1:5173 。如端口被占用，可在 `.env` 中修改 `PORT`。
+
+`npm run dev` 会先编译，然后监听 TS 改动；修改前端代码后刷新页面即可，服务端改动会自动重启。`npm start` 用于一次构建后启动，不监听文件。现有 `qwen-*` 本地存储键名与数据格式保持不变。
+
+| TypeScript 源码 | 用途 |
+| --- | --- |
+| `app.ts`、`chat.ts` | 页面交互、共享消息类型、输入校验与安全渲染 |
+| `app-server.ts`、`api/*.ts` | Node 服务与 Vercel 函数入口 |
+| `build.ts`、`dev.ts` | 静态资源构建与开发监听 |
+| `chat.test.ts`、`check-api.ts` | 自动测试与真实接口探测 |
+
+`tsconfig.json` 开启 `strict`。编译中间文件写入 `.build/`；`dist/` 仅包含 HTML、CSS、浏览器 JS 和图片。浏览器无法直接执行 TS，因此继续通过 `/app.js`、`/chat.js` 加载编译后的代码。上述生成目录均不提交 Git。
 
 ## 已实现
 
@@ -53,7 +65,7 @@ npm run check:api
 
 GitHub Pages 只能托管静态页面，不能运行这个私有后端，详见 [GitHub Pages 文档](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)。如果别人 clone/fork 后独立运行，需要配置他们自己的 Key；你的 Key 只供你部署的网站在服务端使用。
 
-1. 将项目源代码上传 GitHub；不要上传 `.env`。仓库已经忽略 `.env`、`.env.*` 和 `.vercel/`，只保留不含密钥的 `.env.example`。`.vercelignore` 也排除了本机密钥文件，构建只复制公开资源。
+1. 将项目源代码上传 GitHub；不要上传 `.env`。仓库已经忽略 `.env`、`.env.*`、`.vercel/`、`.build/`、`dist/` 和 `node_modules/`，只保留不含密钥的 `.env.example`。`.vercelignore` 也排除了本机密钥文件，构建只复制公开资源。
 2. 在 Vercel 导入这个 GitHub 仓库，Framework 选择 **Other**，Node.js 选择 **22.x**，构建命令 `npm run build`，输出目录 `dist`。项目的 `vercel.json` 和 `api/` 函数入口已准备好。
 3. 在项目 **Settings → Environment Variables** 设置以下变量，然后部署或重新部署。`QWEN_API_KEY` 选择 **Secret** 类型，仅添加到 **Production**；不要将主密钥开放给不可信的 PR 预览构建。参考 [Vercel Secret 环境变量文档](https://vercel.com/docs/environment-variables/sensitive-environment-variables)。
 
@@ -88,11 +100,12 @@ Git 忽略规则不会移除已提交过的秘密。若曾把真实密钥提交�
 ## 验证与构建
 
 ```powershell
+npm run typecheck
 npm test
 npm run build
 ```
 
-`dist/` 是静态页面。需要真实对话时应通过 `npm start` 使用 Node 服务，或按上面的 Vercel 方案同时部署 `api/` 函数，不要只发布静态文件。
+`npm test` 会先完整编译，再运行编译后的 TS 测试。`dist/` 是静态页面。需要真实对话时应通过 `npm start` 使用 Node 服务，或按上面的 Vercel 方案同时部署 `api/` 函数，不要只发布静态文件。
 
 ## 边界
 

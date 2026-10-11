@@ -6,7 +6,12 @@ const base = process.env.QWEN_API_BASE?.replace(/\/$/, '');
 const model = process.env.QWEN_MODEL;
 if (!key || !base || !model) throw new Error('请先在 .env 中配置 API Key、Base URL 和模型。');
 
-async function request(path, body) {
+interface ProviderResult {
+  data?: {id: string}[];
+  choices?: {message?: {content?: unknown}}[];
+}
+
+async function request(path: string, body?: unknown): Promise<ProviderResult> {
   const response = await fetch(`${base}${path}`, {
     method: body ? 'POST' : 'GET',
     headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json'},
@@ -36,6 +41,6 @@ try {
   console.log(JSON.stringify({verified:true, reply:content}, null, 2));
 } catch (error) {
   // Do not print request objects, headers, or raw provider errors.
-  console.error(error.name === 'TimeoutError' ? '接口验证超时。' : error.message?.startsWith('接口') ? error.message : '接口验证失败，请检查网络和服务商配置。');
+  console.error(error instanceof Error && error.name === 'TimeoutError' ? '接口验证超时。' : error instanceof Error && error.message.startsWith('接口') ? error.message : '接口验证失败，请检查网络和服务商配置。');
   process.exitCode = 1;
 }

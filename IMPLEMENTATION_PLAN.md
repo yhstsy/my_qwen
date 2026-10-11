@@ -6,7 +6,7 @@
 
 ## 1. 目标与范围
 
-保留现有原生 HTML/CSS/JavaScript、Node.js 22 与 Vercel 部署结构。补全真实认证、账户数据、项目上下文、技能指令、联网研究、后台执行及线上验收，避免为了接入服务而重写前端框架。
+保留现有原生 HTML/CSS/TypeScript、Node.js 22 与 Vercel 部署结构，浏览器加载构建生成的 JavaScript。补全真实认证、账户数据、项目上下文、技能指令、联网研究、后台执行及线上验收，避免为了接入服务而重写前端框架。
 
 | 编号 | 用户要求 | 实施结果 | 验收要点 |
 | --- | --- | --- | --- |
@@ -37,25 +37,25 @@
 
 | 文件 | 当前行为 | 计划改动 |
 | --- | --- | --- |
-| [app.js](F:/my-qwen/app.js) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
+| [app.ts](F:/my-qwen/app.ts) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
 | [index.html](F:/my-qwen/index.html) | PPT 创作标签；附件 accept 包含未解析的 Office/PDF/图片；输入上限与后端不同 | 入口名称、附件白名单、共享校验参数、OAuth 回跳后的页面恢复 |
-| [chat.js](F:/my-qwen/chat.js) | 消息格式校验及安全渲染 | 补充可共享的输入规则；保留转义及安全 Markdown 渲染 |
-| [app-server.mjs](F:/my-qwen/app-server.mjs) | `/api/status` 只检查 Key 是否存在；`/api/chat` 忽略 mode/tool；一次非流式模型请求 | API 分发、身份验证、上下文组装、模式执行、真实状态投影 |
+| [chat.ts](F:/my-qwen/chat.ts) | 消息格式校验及安全渲染 | 补充可共享的输入规则；保留转义及安全 Markdown 渲染 |
+| [app-server.ts](F:/my-qwen/app-server.ts) | `/api/status` 只检查 Key 是否存在；`/api/chat` 忽略 mode/tool；一次非流式模型请求 | API 分发、身份验证、上下文组装、模式执行、真实状态投影 |
 | [api 目录](F:/my-qwen/api) | 只有 chat/status 两个 Vercel 入口 | 增加新接口适配与受保护的 worker 入口，复用同一业务代码 |
-| [build.mjs](F:/my-qwen/build.mjs) | 只复制公开静态文件 | 增加认证 SDK 的本地打包；继续采用公开文件白名单 |
+| [build.ts](F:/my-qwen/build.ts) | 编译 TS 后只复制公开静态文件 | 增加认证 SDK 的本地打包；继续采用公开文件白名单 |
 | [vercel.json](F:/my-qwen/vercel.json) | CSP 仅允许同源连接；只有现有函数时限 | 新接口映射、函数时限、Supabase 精确连接来源、回跳路径 |
 | [.env.example](F:/my-qwen/.env.example)、[README.md](F:/my-qwen/README.md) | 现有模型及部署说明 | 新服务配置步骤、迁移说明、任务能力与真实验收记录 |
 
 建议新增文件，按实际职责创建，不预建无用目录：
 
 ```text
-lib/auth.mjs              # 校验 Supabase 用户身份
-lib/store.mjs             # 带用户身份的数据访问和事务 RPC
-lib/model.mjs             # 现有模型调用、超时及错误映射
-lib/skills.mjs            # 白名单技能加载与指令组合
-lib/research.mjs          # Tavily 检索、证据处理、研究步骤
-lib/jobs.mjs              # 任务创建、领取、续跑、取消与结果提交
-auth.js                   # 浏览器端 GitHub 登录及会话状态
+lib/auth.ts               # 校验 Supabase 用户身份
+lib/store.ts              # 带用户身份的数据访问和事务 RPC
+lib/model.ts              # 现有模型调用、超时及错误映射
+lib/skills.ts             # 白名单技能加载与指令组合
+lib/research.ts           # Tavily 检索、证据处理、研究步骤
+lib/jobs.ts               # 任务创建、领取、续跑、取消与结果提交
+auth.ts                   # 浏览器端 GitHub 登录及会话状态
 skills/manifest.json      # 技能来源、版本、许可、能力依赖
 skills/<skill-id>/SKILL.md
 supabase/migrations/      # 表、RLS、事务函数、调度配置模板

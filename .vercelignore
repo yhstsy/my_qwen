@@ -4,8 +4,9 @@
 !.env.example
 .git
 dist
+.build
 test-fixtures
-*.test.mjs
+*.test.ts
 preview.jpg
-check-api.mjs
+check-api.ts
 *.log
