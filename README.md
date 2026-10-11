@@ -1,2 +1,99 @@
-# my_qwen
-千问 web app 最小复刻实现
+# 千问网站界面复刻
+
+参照 [千问官网](https://www.qianwen.com/) 2026-10-11 可见的桌面首页与工作模式制作。使用原生 HTML、CSS 和 JavaScript，Node.js 提供本地服务，无第三方运行依赖。
+
+**在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](DEPLOYMENT.md)。
+
+## 启动
+
+需要 Node.js 22 或更高版本，无需安装依赖。
+
+```powershell
+npm run dev
+```
+
+打开 http://127.0.0.1:5173 。如端口被占用，可在 `.env` 中修改 `PORT`。
+
+## 已实现
+
+- 参考站的侧边栏、顶部导航、品牌标志、问候语、工具输入框和原版轮播图片。
+- 日常与工作模式切换、侧栏收起、手机抽屉、深浅色与跟随系统外观。
+- 消息输入、逐字展示、停止生成、复制、重新生成、本地历史持久化、删除与搜索。
+- 附件选择、移除与拖入，云空间文件记录；纯文本附件（不超过 100 KB）可作为模型上下文。
+- 创作入口、工作技能、项目创建与选择、定时任务本地记录。
+- 可选的浏览器语音输入，需浏览器支持并由用户授予麦克风权限。
+- `Ctrl/Cmd + K` 搜索对话；`Ctrl/Cmd + Shift + O` 新对话；Enter 发送、Shift + Enter 换行。
+
+## 接入真实模型
+
+没有配置 Key 时使用明确标注的本地演示。将 `.env.example` 复制为 `.env`，填入你有权使用的 API Key 后重启：
+
+```dotenv
+QWEN_API_KEY=你的DashScope_API_Key
+QWEN_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-plus
+PORT=5173
+```
+
+API Key 仅在 Node 服务端读取，不会下发到浏览器。服务端使用 OpenAI 兼容的 `/chat/completions` 接口，也可以配置其他兼容服务。接口格式参照[阿里云官方文档](https://www.alibabacloud.com/help/en/model-studio/model-calling-in-sub-workspace)。接入 API 后，顶部与模型菜单显示服务端 `QWEN_MODEL` 的实际配置值；演示模式保留参考站模型菜单。快速/思考选项用于复刻交互，当前不根据菜单开启深度研究。逐字展示是客户端显示效果，服务端暂使用非流式请求。
+
+```powershell
+npm run check:api
+```
+
+此命令从本机环境读取配置，检查模型列表，并用随机暗号和加法验证真实聊天及上下文。会产生少量 API 用量，不打印密钥或上游错误原文。`/api/status` 的 `configured` 只表示服务端已填写 Key，不代表服务商当前可用。
+
+## GitHub 开源与公开使用
+
+推荐将代码放在 GitHub，将网站和 API 一起部署到 Vercel。访客通过仓库 README 的在线体验链接打开网站即可使用，无需拿到你的 Key。
+
+```text
+访客浏览器 → 同域 /api/chat → 服务端读取 Secret → 模型供应商
+```
+
+GitHub Pages 只能托管静态页面，不能运行这个私有后端，详见 [GitHub Pages 文档](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)。如果别人 clone/fork 后独立运行，需要配置他们自己的 Key；你的 Key 只供你部署的网站在服务端使用。
+
+1. 将项目源代码上传 GitHub；不要上传 `.env`。仓库已经忽略 `.env`、`.env.*` 和 `.vercel/`，只保留不含密钥的 `.env.example`。`.vercelignore` 也排除了本机密钥文件，构建只复制公开资源。
+2. 在 Vercel 导入这个 GitHub 仓库，Framework 选择 **Other**，Node.js 选择 **22.x**，构建命令 `npm run build`，输出目录 `dist`。项目的 `vercel.json` 和 `api/` 函数入口已准备好。
+3. 在项目 **Settings → Environment Variables** 设置以下变量，然后部署或重新部署。`QWEN_API_KEY` 选择 **Secret** 类型，仅添加到 **Production**；不要将主密钥开放给不可信的 PR 预览构建。参考 [Vercel Secret 环境变量文档](https://vercel.com/docs/environment-variables/sensitive-environment-variables)。
+
+   | 变量 | 值 |
+   | --- | --- |
+   | `QWEN_API_KEY` | 你自己的有效密钥，仅服务端读取 |
+   | `QWEN_API_BASE` | 服务商的 OpenAI 兼容 Base URL，例如 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+   | `QWEN_MODEL` | 该 Key 有权调用的准确模型 ID，例如 `qwen-plus` |
+   | `APP_ORIGIN` | 可留空由 Vercel 识别 HTTPS；其他反向代理需设为网站来源，如 `https://chat.example.com`，无末尾 `/` |
+
+4. 部署后检查 `/api/status` 返回 `configured: true` 和模型名称，再发送一条聊天确认真实回复。将部署地址填入 GitHub 仓库的 About/Website 和 README 的在线体验链接。
+5. 公开前，在 Vercel **Firewall** 为路径 `/api/chat` 添加按 IP 限流规则，例如每 IP 每 60 秒允许 5 次、超限返回 429。当前 Hobby 套餐支持一条 WAF 限流规则，具体以 [Vercel 限流文档](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting)和控制台为准。同时在模型供应商处设置总额度或硬性消费上限。
+
+服务端已限制单次输入 40 条消息、合计 24,000 字符、请求体 64 KB，最大输出 2,048 tokens，并对错误脱敏。不向浏览器发送上游认证头，也不允许浏览器指定 Key、Base URL 或模型。跨站 Origin 检查只减少浏览器跨站调用，不能替代鉴权或限流；公开访客仍能消耗你的额度。需要严格控制每位用户用量时，再加登录和持久化配额。
+
+Git 忽略规则不会移除已提交过的秘密。若曾把真实密钥提交到历史记录，应立即在供应商处撤销并更换，不要只删除文件。
+
+## LMSpeed 共享 Key 实测
+
+2026-10-11，在 [LMSpeed 免费 API Key 页面](https://lmspeed.net/zh/free-api-keys)登录后测试了当时 5 个标记“可用”的条目，每个消耗 20 积分，共 100 积分，余额从 130 变为 30。完整 Key 未写入本文或前端。
+
+| 服务商 / 脱敏条目 | 实测结果 |
+| --- | --- |
+| `api.senseaudio.cn` / `sk-Hii***D5Dd` | `/models` 返回成功；聊天返回 HTTP 400，提示计费账户被冻结 |
+| `api.agnes-ai.cn` / `sk-rbx***C8SX` | `/models` 返回成功；起初多次 HTTP 429（今日文本额度已用完、每分钟限速一次），等待限流窗口后随机暗号及加法验证成功；可临时使用 |
+| `larprouter.com` / `lrsk-6***650d` | `/models` 返回 HTTP 401 |
+| `ai.furry.vg` / `sk-BrP***mwzI` | `/models` 返回 HTTP 403 |
+| `larprouter.com` / `lrsk-5***b0a8` | `/models` 返回 HTTP 401 |
+
+以上是当时实测，不代表这些服务商的全部 Key。Agnes 的 `agnes-2.5-flash` 已通过命令行随机暗号上下文测试，以及网页端真实回复验证（返回“柚子642”，正确计算 `28 + 35 = 63`）。当前本地 `.env` 配置了这个临时接口；它是 Agnes 模型，并非通义千问模型。共享 Key 本身会被其他领取者看到；即使你的网站保密，也无法把共享 Key 变成私有密钥。LMSpeed 也说明共享资源可能限速、失效，不建议用于生产。长期公开服务应使用你自己创建、可撤销和设限的密钥。
+
+## 验证与构建
+
+```powershell
+npm test
+npm run build
+```
+
+`dist/` 是静态页面。需要真实对话时应通过 `npm start` 使用 Node 服务，或按上面的 Vercel 方案同时部署 `api/` 函数，不要只发布静态文件。
+
+## 边界
+
+此项目并非千问官方网站，品牌与参考图片归原权利方所有。账号登录、云同步、生图、生视频、PPT 文件生成、第三方应用连接及后台定时任务未接入官方服务。PDF、Office、图片等附件仅展示文件记录，不会声称已解析；仅纯文本附件支持作为对话输入。云空间只保存文件元数据，文件本身不会持久化上传。历史记录位于当前浏览器 localStorage，清理浏览器数据后会丢失。真实 API 调用会将当前对话及可读文本附件发给配置的模型服务。

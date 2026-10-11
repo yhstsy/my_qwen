@@ -1,0 +1,15 @@
+{
+  "name": "my-qwen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "千问网站界面复刻，支持本地对话和可选的通义千问 API",
+  "scripts": {
+    "dev": "node app-server.mjs",
+    "start": "node app-server.mjs",
+    "build": "node build.mjs",
+    "test": "node --test",
+    "check:api": "node check-api.mjs"
+  },
+  "engines": { "node": "22.x" }
+}

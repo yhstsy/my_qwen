@@ -1,0 +1,11 @@
+.env
+.cache
+.env.*
+!.env.example
+.git
+dist
+test-fixtures
+*.test.mjs
+preview.jpg
+check-api.mjs
+*.log
