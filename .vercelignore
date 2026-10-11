@@ -5,8 +5,7 @@
 .git
 dist
 .build
-test-fixtures
-*.test.ts
-preview.jpg
-check-api.ts
+tests
+docs
+scripts/check-api.ts
 *.log

@@ -2,6 +2,8 @@
 
 日期：2026-10-11。状态：方案与验收计划，尚未开始本轮功能实现或线上部署。
 
+本文描述后续功能方案，当前已实现架构以 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。源码路径已随目录整理更新，不表示本计划开始执行。
+
 已确认：首版采用 **GitHub 登录**；接受 **Supabase + Tavily**，优先使用免费额度；保留现有共享模型 Key；不建设公开接口限流/配额；不改动现有品牌身份及隐私说明。
 
 ## 1. 目标与范围
@@ -37,30 +39,30 @@
 
 | 文件 | 当前行为 | 计划改动 |
 | --- | --- | --- |
-| [app.ts](F:/my-qwen/app.ts) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
-| [index.html](F:/my-qwen/index.html) | PPT 创作标签；附件 accept 包含未解析的 Office/PDF/图片；输入上限与后端不同 | 入口名称、附件白名单、共享校验参数、OAuth 回跳后的页面恢复 |
-| [chat.ts](F:/my-qwen/chat.ts) | 消息格式校验及安全渲染 | 补充可共享的输入规则；保留转义及安全 Markdown 渲染 |
-| [app-server.ts](F:/my-qwen/app-server.ts) | `/api/status` 只检查 Key 是否存在；`/api/chat` 忽略 mode/tool；一次非流式模型请求 | API 分发、身份验证、上下文组装、模式执行、真实状态投影 |
-| [api 目录](F:/my-qwen/api) | 只有 chat/status 两个 Vercel 入口 | 增加新接口适配与受保护的 worker 入口，复用同一业务代码 |
-| [build.ts](F:/my-qwen/build.ts) | 编译 TS 后只复制公开静态文件 | 增加认证 SDK 的本地打包；继续采用公开文件白名单 |
-| [vercel.json](F:/my-qwen/vercel.json) | CSP 仅允许同源连接；只有现有函数时限 | 新接口映射、函数时限、Supabase 精确连接来源、回跳路径 |
-| [.env.example](F:/my-qwen/.env.example)、[README.md](F:/my-qwen/README.md) | 现有模型及部署说明 | 新服务配置步骤、迁移说明、任务能力与真实验收记录 |
+| [src/app.ts](../src/app.ts) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
+| [public/index.html](../public/index.html) | PPT 创作标签；附件 accept 包含未解析的 Office/PDF/图片；输入上限与后端不同 | 入口名称、附件白名单、共享校验参数、OAuth 回跳后的页面恢复 |
+| [src/chat.ts](../src/chat.ts) | 消息格式校验及安全渲染 | 补充可共享的输入规则；保留转义及安全 Markdown 渲染 |
+| [src/app-server.ts](../src/app-server.ts) | `/api/status` 只检查 Key 是否存在；`/api/chat` 忽略 mode/tool；一次非流式模型请求 | API 分发、身份验证、上下文组装、模式执行、真实状态投影 |
+| [api 目录](../api) | 只有 chat/status 两个 Vercel 入口 | 增加新接口适配与受保护的 worker 入口，复用同一业务代码 |
+| [scripts/build.ts](../scripts/build.ts) | 编译 TS 后只复制公开静态文件 | 增加认证 SDK 的本地打包；继续采用公开文件白名单 |
+| [vercel.json](../vercel.json) | CSP 仅允许同源连接；只有现有函数时限 | 新接口映射、函数时限、Supabase 精确连接来源、回跳路径 |
+| [.env.example](../.env.example)、[README.md](../README.md) | 现有模型及部署说明 | 新服务配置步骤、迁移说明、任务能力与真实验收记录 |
 
 建议新增文件，按实际职责创建，不预建无用目录：
 
 ```text
-lib/auth.ts               # 校验 Supabase 用户身份
-lib/store.ts              # 带用户身份的数据访问和事务 RPC
-lib/model.ts              # 现有模型调用、超时及错误映射
-lib/skills.ts             # 白名单技能加载与指令组合
-lib/research.ts           # Tavily 检索、证据处理、研究步骤
-lib/jobs.ts               # 任务创建、领取、续跑、取消与结果提交
-auth.ts                   # 浏览器端 GitHub 登录及会话状态
+src/server/auth.ts        # 校验 Supabase 用户身份
+src/server/store.ts       # 带用户身份的数据访问和事务 RPC
+src/server/model.ts       # 现有模型调用、超时及错误映射
+src/server/skills.ts      # 白名单技能加载与指令组合
+src/server/research.ts    # Tavily 检索、证据处理、研究步骤
+src/server/jobs.ts        # 任务创建、领取、续跑、取消与结果提交
+src/auth.ts               # 浏览器端 GitHub 登录及会话状态
 skills/manifest.json      # 技能来源、版本、许可、能力依赖
 skills/<skill-id>/SKILL.md
 supabase/migrations/      # 表、RLS、事务函数、调度配置模板
-tests/                    # 数据归属、任务状态、输入及接口测试
-DEPLOYMENT_CHECKLIST.md   # 实施阶段填写实际线上验收证据
+tests/                    # 在现有目录补充数据归属、任务状态、输入及接口测试
+docs/DEPLOYMENT_CHECKLIST.md # 实施阶段填写实际线上验收证据
 ```
 
 依赖以必要项为限：认证使用官方 `@supabase/supabase-js`；浏览器 SDK 在构建时打包到本地资源，可使用一个开发依赖 `esbuild`。Tavily 和模型继续通过 Node 原生 `fetch` 调用。循环日程需要时区计算时采用一个成熟日历库，避免自行实现夏令时逻辑。固定依赖版本并提交锁文件。
@@ -411,7 +413,7 @@ npx skills add JimLiu/baoyu-skills@baoyu-translate
 
 ### 线上验收必须留下证据
 
-在 `DEPLOYMENT_CHECKLIST.md` 记录部署 URL、时间、提交/构建版本、项目环境和每项通过/失败/待完成；日志、截图和结果摘录均脱敏。
+在 `docs/DEPLOYMENT_CHECKLIST.md` 记录部署 URL、时间、提交/构建版本、项目环境和每项通过/失败/待完成；日志、截图和结果摘录均脱敏。
 
 - [ ] 正式 HTTPS 页面、静态资源和新增 API 正常，冷启动后可用。
 - [ ] GitHub 登录成功、取消授权、退出、刷新恢复、两账号隔离通过。

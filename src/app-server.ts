@@ -12,7 +12,8 @@ type HttpError = Error & {status?: number; statusCode?: number; code?: string};
 interface ProviderResult { choices?: {message?: {content?: unknown}}[]; }
 
 const moduleRoot = dirname(fileURLToPath(import.meta.url));
-const root = basename(moduleRoot) === '.build' ? dirname(moduleRoot) : moduleRoot;
+const parentRoot = dirname(moduleRoot);
+const root = basename(parentRoot) === '.build' ? dirname(parentRoot) : parentRoot;
 const envPath = resolve(root, '.env');
 if (existsSync(envPath)) process.loadEnvFile(envPath);
 
@@ -25,9 +26,9 @@ export function resolvePublicPath(pathname: string): string | null {
   if (path === '/') path = '/index.html';
   const name = path.replace(/^\/+/, '');
   if (!publicFiles.has(name) && !name.startsWith('assets/')) return null;
-  const directory = name === 'app.js' || name === 'chat.js' ? resolve(root,'.build') : root;
+  const directory = name === 'app.js' || name === 'chat.js' ? resolve(root,'.build/src') : resolve(root,'public');
   const absolute = resolve(directory, name);
-  return absolute.startsWith(root + sep) && contentTypes[extname(absolute)] ? absolute : null;
+  return absolute.startsWith(directory + sep) && contentTypes[extname(absolute)] ? absolute : null;
 }
 
 function json(response: ServerResponse, status: number, body: unknown): void {

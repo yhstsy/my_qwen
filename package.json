@@ -5,12 +5,12 @@
   "type": "module",
   "description": "千问网站界面复刻，支持本地对话和可选的通义千问 API",
   "scripts": {
-    "dev": "npm run build && node .build/dev.js",
-    "start": "npm run build && node .build/app-server.js",
+    "dev": "npm run build && node .build/scripts/dev.js",
+    "start": "npm run build && node .build/src/app-server.js",
     "typecheck": "tsc --noEmit",
-    "build": "tsc && node .build/build.js",
-    "test": "npm run build && node --test .build/chat.test.js",
-    "check:api": "npm run build && node .build/check-api.js"
+    "build": "tsc && node .build/scripts/build.js",
+    "test": "npm run build && node --test .build/tests/*.test.js",
+    "check:api": "npm run build && node .build/scripts/check-api.js"
   },
   "engines": {
     "node": "22.x"

@@ -2,7 +2,7 @@
 
 参照 [千问官网](https://www.qianwen.com/) 2026-10-11 可见的桌面首页与工作模式制作。使用原生 HTML、CSS 和 TypeScript，Node.js 提供本地服务，无第三方业务运行依赖。TypeScript 和 Node.js 类型定义仅作为开发、构建依赖。
 
-**在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](DEPLOYMENT.md)。
+**在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](docs/DEPLOYMENT.md)。项目组织、请求流程与实现边界见 [架构实现文档](docs/ARCHITECTURE.md)，后续功能方案见 [实施计划](docs/IMPLEMENTATION_PLAN.md)。
 
 ## 启动
 
@@ -19,10 +19,12 @@ npm run dev
 
 | TypeScript 源码 | 用途 |
 | --- | --- |
-| `app.ts`、`chat.ts` | 页面交互、共享消息类型、输入校验与安全渲染 |
-| `app-server.ts`、`api/*.ts` | Node 服务与 Vercel 函数入口 |
-| `build.ts`、`dev.ts` | 静态资源构建与开发监听 |
-| `chat.test.ts`、`check-api.ts` | 自动测试与真实接口探测 |
+| `src/app.ts`、`src/chat.ts` | 页面交互、共享消息类型、输入校验与安全渲染 |
+| `src/app-server.ts`、`api/*.ts` | Node 服务与 Vercel 函数入口 |
+| `scripts/build.ts`、`scripts/dev.ts` | 静态资源构建与开发监听 |
+| `tests/chat.test.ts`、`scripts/check-api.ts` | 自动测试与手动真实接口探测 |
+
+`public/` 保存 HTML、CSS 和图片；`tests/fixtures/` 保存测试样本；`docs/` 保存架构、部署记录和后续实施计划。根目录只保留项目说明、工程配置和平台要求的入口目录。
 
 `tsconfig.json` 开启 `strict`。编译中间文件写入 `.build/`；`dist/` 仅包含 HTML、CSS、浏览器 JS 和图片。浏览器无法直接执行 TS，因此继续通过 `/app.js`、`/chat.js` 加载编译后的代码。上述生成目录均不提交 Git。
 

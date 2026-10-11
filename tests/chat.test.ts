@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { validateMessages, renderMessage, formatSize } from './chat.ts';
-import { createAppServer, createAppHandler, resolvePublicPath } from './app-server.ts';
-import type { AppRequest } from './app-server.ts';
+import { validateMessages, renderMessage, formatSize } from '../src/chat.ts';
+import { createAppServer, createAppHandler, resolvePublicPath } from '../src/app-server.ts';
+import type { AppRequest } from '../src/app-server.ts';
 import type { AddressInfo } from 'node:net';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 test('model and user text cannot inject executable HTML', () => {
   assert.equal(renderMessage('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
@@ -25,18 +27,26 @@ test('API validates message roles and sizes at the boundary', () => {
 
 test('static server never exposes configuration or traverses outside public files', () => {
   assert.ok(resolvePublicPath('/assets/qwen.svg'));
-  for (const path of ['/.env','/app-server.ts','/app.ts','/api/chat.ts','/.build/app-server.js','/package.json','/assets/../../.env','/assets/%2e%2e/%2e%2e/.env','/%ZZ']) assert.equal(resolvePublicPath(path),null);
+  for (const path of ['/.env','/app-server.ts','/app.ts','/src/app.ts','/src/app-server.ts','/scripts/build.ts','/tests/chat.test.ts','/docs/ARCHITECTURE.md','/api/chat.ts','/.build/src/app-server.js','/package.json','/assets/../../.env','/assets/%2e%2e/%2e%2e/.env','/%ZZ']) assert.equal(resolvePublicPath(path),null);
 });
 
 test('TypeScript build publishes only browser assets with working JavaScript imports', async () => {
-  const names = await readdir(new URL('../dist/',import.meta.url));
+  const names = await readdir(new URL('../../dist/',import.meta.url));
   assert.deepEqual(names.sort(),['app.js','assets','chat.js','index.html','styles.css']);
-  const app = await readFile(new URL('../dist/app.js',import.meta.url),'utf8');
+  const app = await readFile(new URL('../../dist/app.js',import.meta.url),'utf8');
   assert.match(app,/from ['"]\.\/chat\.js['"]/);
   assert.doesNotMatch(app,/from ['"].*\.ts['"]/);
-  const browser: {renderMessage: typeof renderMessage; validateMessages: typeof validateMessages} = await import(new URL('../dist/chat.js',import.meta.url).href);
+  const browser: {renderMessage: typeof renderMessage; validateMessages: typeof validateMessages} = await import(new URL('../../dist/chat.js',import.meta.url).href);
   assert.equal(browser.renderMessage('<script>'),renderMessage('<script>'));
   assert.equal(browser.validateMessages([{role:'system',content:'bad'}]),false);
+});
+
+test('rebuilding removes files left over from an older public release', async () => {
+  const stale = new URL('../../dist/stale-private.txt',import.meta.url);
+  await writeFile(stale,'An obsolete file must not remain publicly accessible.');
+  execFileSync(process.execPath,[fileURLToPath(new URL('../scripts/build.js',import.meta.url))]);
+  await assert.rejects(readFile(stale),{code:'ENOENT'});
+  assert.match(await readFile(new URL('../../dist/index.html',import.meta.url),'utf8'),/<title>千问/);
 });
 
 test('HTTP server serves assets and handles unavailable or invalid API requests', async () => {
@@ -51,7 +61,7 @@ test('HTTP server serves assets and handles unavailable or invalid API requests'
     assert.equal((await fetch(base + '/chat.js')).status,200);
     assert.equal((await fetch(base + '/.env')).status,404);
     assert.equal((await fetch(base + '/app.ts')).status,404);
-    assert.equal((await fetch(base + '/.build/app-server.js')).status,404);
+    for (const path of ['/src/app.ts','/src/app-server.ts','/scripts/build.ts','/tests/chat.test.ts','/docs/ARCHITECTURE.md','/.build/src/app-server.js']) assert.equal((await fetch(base + path)).status,404);
     assert.deepEqual(await (await fetch(base + '/api/status')).json(),{configured:false,model:null});
     const post = (messages: unknown) => fetch(base + '/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages})});
     assert.equal((await post([{role:'user',content:'你好'}])).status,503);

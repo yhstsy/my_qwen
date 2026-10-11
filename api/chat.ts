@@ -1,3 +1,3 @@
-import { createAppHandler } from '../app-server.ts';
+import { createAppHandler } from '../src/app-server.ts';
 
 export default createAppHandler();
