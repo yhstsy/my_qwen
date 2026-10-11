@@ -29,7 +29,7 @@ npm run dev
 | `tests/*.test.ts`、`tests/*.test.tsx` | API、构建、状态竞态和 React 组件回归 |
 | `scripts/check-api.ts` | 手动真实接口探测，会消耗模型额度 |
 
-根目录 `index.html` 为 HTML 模板，构建时自动注入 React 入口脚本；`public/` 只保存公开 CSS 和图片；`tests/fixtures/` 保存测试样本；`docs/` 保存架构、部署记录和后续实施计划。完整迁移步骤与验收见 [webpack 迁移计划](docs/WEBPACK_MIGRATION_PLAN.md)，此前方案见 [React 迁移记录](docs/REACT_MIGRATION_PLAN.md)。
+根目录 `index.html` 为 HTML 模板，构建时自动注入 React 入口脚本；`public/` 只保存公开 CSS 和图片；`tests/fixtures/` 保存测试样本；`docs/` 保存架构与部署记录。当前实现和验证方式见 [架构文档](docs/ARCHITECTURE.md)。实施计划和参考截图仅在本地保留，不提交 Git 或部署线上。
 
 `tsconfig.json` 开启 `strict` 与 TSX 支持。编译中间文件写入 `.build/`；webpack 使用 Babel 转换 TS/TSX，由 tsc 检查类型，将前端打包到 `dist/assets/index-<hash>.js`。`dist/` 仅包含公开 HTML、CSS、浏览器 JS、第三方许可文件和图片，生成目录均不提交 Git。生产构建不包含热更新客户端或源码映射。
 
@@ -41,7 +41,7 @@ npm run build
 
 自动测试使用本地模拟供应商，不调用真实共享模型。当前工具链通过 18 项自动测试、类型检查、开发热更新、浏览器回归和 Vercel 本地生产构建。GitHub 的 `main` 已关联 Vercel，推送会触发生产部署；线上发布结果以对应提交的 Vercel 状态为准。
 
-依赖审计：生产依赖 `npm audit --omit=dev` 无已知漏洞。开发工具间接依赖的 `braces` 存在[尚无修复版本的漏洞](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)，开发服务只监听本机，代理使用固定函数匹配，不接受用户 glob；具体范围与处理见迁移验收记录。
+依赖审计：生产依赖 `npm audit --omit=dev` 无已知漏洞。开发工具间接依赖的 `braces` 存在[尚无修复版本的漏洞](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)，开发服务只监听本机，代理使用固定函数匹配，不接受用户 glob；具体范围与处理见 [架构文档](docs/ARCHITECTURE.md)。
 
 ## 已实现
 
