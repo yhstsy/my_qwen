@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { renderMessage } from "../../chat.ts";
 import type { Conversation as ConversationData } from "../types.ts";
 import { Icon, IconButton } from "./Icon.tsx";
+import { AgentProgress } from './AgentProgress.tsx';
 
 export function Conversation({
   chat,
@@ -78,6 +79,7 @@ export function Conversation({
                 alt="千问"
               />
               <div className="assistant-content">
+                {message.agent && <AgentProgress run={message.agent} />}
                 <div
                   className="message-text"
                   dangerouslySetInnerHTML={{

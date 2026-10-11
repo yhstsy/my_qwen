@@ -14,6 +14,9 @@ interface Props {
   draft: string;
   attachments: Attachment[];
   busy: boolean;
+  agentMode?: boolean;
+  agentAvailable?: boolean;
+  onAgentMode?: (value:boolean) => void;
   recording: boolean;
   projectTitle: string;
   width: number;
@@ -249,6 +252,11 @@ export function Composer(p: Props) {
             </button>
           </div>
         </div>
+        <label className="agent-toggle" title={p.agentAvailable ? '分步骤检索已提交文本、计算并汇总；不支持联网搜索。' : '连接模型服务后可使用多步骤执行。'}>
+          <input type="checkbox" checked={!!p.agentMode} disabled={p.busy || !p.agentAvailable} onChange={event=>p.onAgentMode?.(event.target.checked)} />
+          多步骤执行
+          <span>当前文本检索与计算</span>
+        </label>
       </form>
       {p.mode === "work" && (
         <button

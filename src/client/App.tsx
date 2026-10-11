@@ -54,6 +54,7 @@ export function App() {
   const [mode, setMode] = useState<Mode>("daily");
   const [tool, setTool] = useState("");
   const [speed, setSpeed] = useState("快速");
+  const [agentMode,setAgentMode] = useState(false);
   const [model, setModel] = useState(modelNames[0]);
   const [selectedProject, setSelectedProject] = useState("");
   const [draft, setDraft] = useState("");
@@ -300,6 +301,7 @@ export function App() {
       status.configured,
       tool,
       speed,
+      agentMode && status.agentEnabled ? 'agent' : 'chat',
     );
     setPanel(null);
     clearInput();
@@ -381,6 +383,9 @@ export function App() {
       draft={draft}
       attachments={attachments}
       busy={chat.busy}
+      agentMode={agentMode}
+      agentAvailable={status.agentEnabled}
+      onAgentMode={setAgentMode}
       recording={voice.recording}
       projectTitle={
         projects.find((project) => project.id === selectedProject)?.title ||

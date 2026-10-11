@@ -147,6 +147,7 @@ test("HTTP server serves assets and handles unavailable or invalid API requests"
     assert.deepEqual(await (await fetch(base + "/api/status")).json(), {
       configured: false,
       model: null,
+      agentEnabled: false,
     });
     const post = (messages: unknown) =>
       fetch(base + "/api/chat", {
@@ -242,6 +243,7 @@ test("configured API proxies model replies and never returns upstream secrets in
     assert.deepEqual(await (await fetch(base + "/api/status")).json(), {
       configured: true,
       model: "test-model",
+      agentEnabled: true,
     });
     const post = (content: string) =>
       fetch(base + "/api/chat", {

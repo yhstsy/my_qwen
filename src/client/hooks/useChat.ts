@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from "react";
 import { buildHistory, chatReducer, readConversations } from "../state.ts";
-import { requestReply, typeReply } from "../generation.ts";
+import { requestReply, requestAgent, typeReply } from "../generation.ts";
 import type { Conversation, Mode, StoredMessage } from "../types.ts";
 
 export function useChat(notify: (message: string) => void) {
@@ -62,6 +62,10 @@ export function useChat(notify: (message: string) => void) {
     const id = crypto.randomUUID();
     dispatch({ type: "start", id, chat });
     try {
+      if (chat.messages.at(-1)?.executionMode === 'agent' && apiAvailable && !['AI生图','AI生视频'].includes(tool)) {
+        await requestAgent({history:buildHistory(chat.messages),apiAvailable,tool,speed,signal:controller.signal,onEvent:event=>dispatch({type:'agent',id,event})});
+        return;
+      }
       const answer = await requestReply({
         history: buildHistory(chat.messages),
         apiAvailable,
@@ -81,6 +85,7 @@ export function useChat(notify: (message: string) => void) {
         dispatch({
           type: "text",
           id,
+          append: true,
           content: `暂时无法完成回复：${error instanceof Error ? error.message : String(error)}`,
         });
     } finally {
@@ -97,10 +102,11 @@ export function useChat(notify: (message: string) => void) {
     apiAvailable: boolean,
     tool: string,
     speed: string,
+    executionMode: 'chat' | 'agent' = 'chat',
   ) {
     if (state.generation) return;
     const chat: Conversation = current
-      ? { ...current, messages: [...current.messages, message] }
+      ? { ...current, messages: [...current.messages, {...message,executionMode}] }
       : {
           id: crypto.randomUUID(),
           title: (message.content === "请查看附件" && message.files?.length
@@ -109,7 +115,7 @@ export function useChat(notify: (message: string) => void) {
           ).slice(0, 26),
           mode,
           createdAt: Date.now(),
-          messages: [message],
+          messages: [{...message,executionMode}],
         };
     void generate(chat, apiAvailable, tool, speed);
   }

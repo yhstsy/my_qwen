@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../chat.ts";
+import type { AgentRun } from '../shared/agent.ts';
 
 export type Mode = "daily" | "work";
 export type PanelName = "space" | "create" | "skills" | "connect" | "projects";
@@ -25,6 +26,8 @@ export interface FileRecord extends Omit<Attachment, "text"> {
 export interface StoredMessage extends ChatMessage {
   files?: Pick<Attachment, "name" | "text">[];
   tool?: string;
+  executionMode?: 'chat' | 'agent';
+  agent?: AgentRun;
 }
 export interface Conversation {
   id: string;

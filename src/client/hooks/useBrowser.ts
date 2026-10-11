@@ -33,7 +33,7 @@ export function useTheme(theme: Theme) {
 }
 
 export function useApiStatus() {
-  const [status, setStatus] = useState({ configured: false, model: "" });
+  const [status, setStatus] = useState({ configured: false, model: "", agentEnabled: false });
   useEffect(() => {
     const controller = new AbortController();
     void fetch("/api/status", { signal: controller.signal })
@@ -42,6 +42,7 @@ export function useApiStatus() {
           ? ((await response.json()) as {
               configured: boolean;
               model: string | null;
+              agentEnabled?: boolean;
             })
           : null,
       )
@@ -50,6 +51,7 @@ export function useApiStatus() {
           setStatus({
             configured: !!result?.configured,
             model: typeof result?.model === "string" ? result.model : "",
+            agentEnabled: result?.agentEnabled === true,
           });
       })
       .catch(() => {});

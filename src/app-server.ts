@@ -5,9 +5,12 @@ import { existsSync } from 'node:fs';
 import { basename, dirname, resolve, extname, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateMessages } from './chat.ts';
+import { once } from 'node:events';
+import { createAgentModel } from './server/agent/model.ts';
+import { runAgent } from './server/agent/runtime.ts';
 
 export type AppRequest = IncomingMessage & {body?: unknown; socket: IncomingMessage['socket'] & {encrypted?: boolean}};
-export interface AppOptions { apiKey?: string; apiBase?: string; model?: string; appOrigin?: string; }
+export interface AppOptions { apiKey?: string; apiBase?: string; model?: string; appOrigin?: string; agentEnabled?: boolean; agentProtocol?: 'json'|'tools'; }
 type HttpError = Error & {status?: number; statusCode?: number; code?: string};
 interface ProviderResult { choices?: {message?: {content?: unknown}}[]; }
 
@@ -60,14 +63,14 @@ async function readBody(request: AppRequest): Promise<unknown> {
   catch { throw Object.assign(new Error('请求格式不正确。'), {status:400}); }
 }
 
-export function createAppHandler({apiKey = process.env.QWEN_API_KEY, apiBase = process.env.QWEN_API_BASE || 'https://dashscope.aliyuncs.com/compatible-mode/v1', model = process.env.QWEN_MODEL || 'qwen-plus', appOrigin = process.env.APP_ORIGIN}: AppOptions = {}) {
+export function createAppHandler({apiKey = process.env.QWEN_API_KEY, apiBase = process.env.QWEN_API_BASE || 'https://dashscope.aliyuncs.com/compatible-mode/v1', model = process.env.QWEN_MODEL || 'qwen-plus', appOrigin = process.env.APP_ORIGIN, agentEnabled = process.env.AGENT_ENABLED !== 'false', agentProtocol = process.env.AGENT_TOOL_PROTOCOL === 'tools' ? 'tools' : 'json'}: AppOptions = {}) {
   return async (request: AppRequest,response: ServerResponse): Promise<void> => {
     response.setHeader('X-Content-Type-Options','nosniff');
     response.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
     response.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     const url = new URL(request.url || '/', 'http://localhost');
     try {
-      if (url.pathname === '/api/status' && request.method === 'GET') { json(response,200,{configured:!!apiKey,model:apiKey ? model : null}); return; }
+      if (url.pathname === '/api/status' && request.method === 'GET') { json(response,200,{configured:!!apiKey,model:apiKey ? model : null,agentEnabled:agentEnabled && !!apiKey}); return; }
       if (url.pathname === '/api/chat' && request.method === 'POST') {
         const protocol = request.socket.encrypted || (process.env.VERCEL === '1' && request.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
         const origin = appOrigin || `${protocol}://${request.headers.host}`;
@@ -77,6 +80,32 @@ export function createAppHandler({apiKey = process.env.QWEN_API_KEY, apiBase = p
         if (!validateMessages(messages)) { json(response,400,{error:'消息格式不正确，请重新发起对话。'}); return; }
         if (messages.length > 40 || messages.reduce((size,message) => size + message.content.length,0) > 24000) { json(response,413,{error:'对话或附件内容过长，请新建对话或缩短文本。'}); return; }
         if (!apiKey) { json(response,503,{error:'尚未配置模型服务，当前为本地演示模式。'}); return; }
+        const executionMode = body && typeof body === 'object' && 'executionMode' in body ? body.executionMode : undefined;
+        if (executionMode !== undefined && executionMode !== 'agent' && executionMode !== 'chat') { json(response,400,{error:'执行模式不正确。'}); return; }
+        if (executionMode === 'agent') {
+          if (!agentEnabled) { json(response,503,{error:'多步骤执行尚未启用。'}); return; }
+          const controller = new AbortController();
+          // Bound stalled downstream writes as well as model/tool execution.
+          const streamTimeout = setTimeout(() => { controller.abort(); response.destroy(); },58000);
+          const close = () => { if (!response.writableEnded) controller.abort(); };
+          response.on('close',close);
+          response.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8','Cache-Control':'no-store','X-Accel-Buffering':'no'});
+          response.flushHeaders();
+          try {
+            await runAgent({messages,signal:controller.signal,model:createAgentModel({apiKey,apiBase,model,protocol:agentProtocol}),
+              emit:async event => {
+                if (controller.signal.aborted || response.destroyed) return;
+                const line=JSON.stringify(event).replaceAll(apiKey,'[已隐藏]')+'\n';
+                if (!response.write(line)) await once(response,'drain',{signal:controller.signal});
+              },
+            });
+          } finally {
+            clearTimeout(streamTimeout);
+            response.off('close',close);
+            if (!response.destroyed) response.end();
+          }
+          return;
+        }
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(),55000);
         response.on('close', () => { if (!response.writableEnded) controller.abort(); });
