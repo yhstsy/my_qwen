@@ -8,7 +8,7 @@
 
 ## 1. 目标与范围
 
-保留现有原生 HTML/CSS/TypeScript、Node.js 22 与 Vercel 部署结构，浏览器加载构建生成的 JavaScript。补全真实认证、账户数据、项目上下文、技能指令、联网研究、后台执行及线上验收，避免为了接入服务而重写前端框架。
+在已迁移的 React + TypeScript + webpack 前端、Node.js 22 与 Vercel 部署结构上，补全真实认证、账户数据、项目上下文、技能指令、联网研究、后台执行及线上验收。本计划继续暂停，React 迁移不表示这些功能已落地。
 
 | 编号 | 用户要求 | 实施结果 | 验收要点 |
 | --- | --- | --- | --- |
@@ -39,12 +39,12 @@
 
 | 文件 | 当前行为 | 计划改动 |
 | --- | --- | --- |
-| [src/app.ts](../src/app.ts) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
-| [public/index.html](../public/index.html) | PPT 创作标签；附件 accept 包含未解析的 Office/PDF/图片；输入上限与后端不同 | 入口名称、附件白名单、共享校验参数、OAuth 回跳后的页面恢复 |
+| [src/client/App.tsx](../src/client/App.tsx)、[hooks](../src/client/hooks) | 登录只改变按钮文字；项目、任务、历史均为 localStorage；速度/技能没有进入真实服务端执行策略 | 登录状态、账户数据适配、项目绑定、技能 ID、研究/任务状态展示、错误处理 |
+| [components](../src/client/components)、[data.ts](../src/client/data.ts) | PPT 创作标签；附件 accept 包含未解析的 Office/PDF/图片；输入上限与后端不同 | 入口名称、附件白名单、共享校验参数、OAuth 回跳后的页面恢复 |
 | [src/chat.ts](../src/chat.ts) | 消息格式校验及安全渲染 | 补充可共享的输入规则；保留转义及安全 Markdown 渲染 |
 | [src/app-server.ts](../src/app-server.ts) | `/api/status` 只检查 Key 是否存在；`/api/chat` 忽略 mode/tool；一次非流式模型请求 | API 分发、身份验证、上下文组装、模式执行、真实状态投影 |
 | [api 目录](../api) | 只有 chat/status 两个 Vercel 入口 | 增加新接口适配与受保护的 worker 入口，复用同一业务代码 |
-| [scripts/build.ts](../scripts/build.ts) | 编译 TS 后只复制公开静态文件 | 增加认证 SDK 的本地打包；继续采用公开文件白名单 |
+| [scripts/build.ts](../scripts/build.ts)、[webpack.config.ts](../webpack.config.ts) | webpack 打包 React 前端，public 仅含公开资源 | 复用现有打包工具处理认证 SDK，保持密钥只在服务端 |
 | [vercel.json](../vercel.json) | CSP 仅允许同源连接；只有现有函数时限 | 新接口映射、函数时限、Supabase 精确连接来源、回跳路径 |
 | [.env.example](../.env.example)、[README.md](../README.md) | 现有模型及部署说明 | 新服务配置步骤、迁移说明、任务能力与真实验收记录 |
 
@@ -57,7 +57,7 @@ src/server/model.ts       # 现有模型调用、超时及错误映射
 src/server/skills.ts      # 白名单技能加载与指令组合
 src/server/research.ts    # Tavily 检索、证据处理、研究步骤
 src/server/jobs.ts        # 任务创建、领取、续跑、取消与结果提交
-src/auth.ts               # 浏览器端 GitHub 登录及会话状态
+src/client/hooks/useAuth.ts # 浏览器端 GitHub 登录及会话状态
 skills/manifest.json      # 技能来源、版本、许可、能力依赖
 skills/<skill-id>/SKILL.md
 supabase/migrations/      # 表、RLS、事务函数、调度配置模板
@@ -65,7 +65,7 @@ tests/                    # 在现有目录补充数据归属、任务状态、�
 docs/DEPLOYMENT_CHECKLIST.md # 实施阶段填写实际线上验收证据
 ```
 
-依赖以必要项为限：认证使用官方 `@supabase/supabase-js`；浏览器 SDK 在构建时打包到本地资源，可使用一个开发依赖 `esbuild`。Tavily 和模型继续通过 Node 原生 `fetch` 调用。循环日程需要时区计算时采用一个成熟日历库，避免自行实现夏令时逻辑。固定依赖版本并提交锁文件。
+依赖以必要项为限：认证使用官方 `@supabase/supabase-js`；浏览器 SDK 复用现有 webpack 打包到本地资源。Tavily 和模型继续通过 Node 原生 `fetch` 调用。循环日程需要时区计算时采用一个成熟日历库，避免自行实现夏令时逻辑。固定依赖版本并提交锁文件。
 
 ## 3. 服务结构与免费额度约束
 

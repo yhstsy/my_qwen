@@ -4,7 +4,7 @@
 - 公开网址：https://my-qwen-weld.vercel.app/
 - 平台：Vercel Hobby，项目 `my-qwen`，空间 `yhstsyyhstsy-8295`。
 - 源码仓库：https://github.com/yhstsy/my_qwen ，主分支 `main`。
-- 发布方式：本机 Vercel CLI 上传，尚未绑定 Vercel 的 GitHub 自动部署。
+- 发布方式：已关联 GitHub 仓库，推送 `main` 自动触发 Vercel 生产部署；也可通过本机 Vercel CLI 手动上传。
 - 运行环境：Node.js `22.x`，构建命令 `npm run build`，静态目录 `dist`；迁移后的服务端入口为 `api/chat.ts` 与 `api/status.ts`。
 - 部署管理：https://vercel.com/yhstsyyhstsy-8295/my-qwen/deployments
 
@@ -12,7 +12,15 @@
 
 生产环境已设置 `QWEN_API_BASE`、`QWEN_MODEL` 和 Secret 类型的 `QWEN_API_KEY`，模型为 `agnes-2.5-flash`。预览环境没有配置这把 Key。密钥只由服务端读取，没有写入前端或本记录。
 
-`.env`、`.env.local`、`.cache/`、`.vercel/`、`.build/`、`dist/`、`node_modules/` 不应上传 GitHub。构建仅复制公开静态文件，CLI 登录凭据与临时缓存均已排除上传。
+`.env`、`.env.local`、`.cache/`、`.vercel/`、`.build/`、`dist/`、`node_modules/` 不应上传 GitHub。webpack 构建只打包前端依赖，并复制 `public/styles.css` 与 `public/assets/`，CLI 登录凭据与临时缓存均已排除上传。公开资源目录不得放密钥或内部文件。
+
+## React + TypeScript + webpack 迁移（2026-10-12）
+
+前端已迁移到 React + TypeScript + webpack，原生 DOM 业务入口已删除，Vite 依赖与配置已移除。Vercel 构建命令仍为 `npm run build`，输出目录仍为 `dist`，API 入口、环境变量与服务端 Key 保持现状。JS 资源改为 `assets/index-<hash>.js`，部署时由 HTML 自动引用；对应的 `.LICENSE.txt` 作为公开许可文件保留。
+
+本轮本地验证通过严格类型检查、18 项自动测试、模拟模型浏览器验收、React Fast Refresh 草稿保留、CSS 自动刷新和 Vercel 生产构建；公开资源及两个函数包未发现实际模型 Key，函数包不含 `.env`。生产依赖审计无漏洞，开发依赖中尚未修复的 `braces` 漏洞及本机访问约束见 [webpack 迁移计划与验收](WEBPACK_MIGRATION_PLAN.md)。以下 TS 和目录调整段落为此前版本的历史记录。
+
+本轮通过推送 main 触发 GitHub 自动部署。提交后的验收需要确认对应提交部署 READY、生产别名指向新部署，并检查首页、指纹 JS/CSS/图片、`/api/status`、私有路径 404 和主要交互；对应结果在任务交付时报告。本地构建成功不能代替线上验收。按当前用户偏好，线上检查不调用真实共享模型。
 
 ## TypeScript 源码迁移
 
@@ -38,7 +46,7 @@
 
 ## 更新网站
 
-在本机项目目录执行以下命令。CLI 登录信息放在被忽略的 `.cache/vercel-cli`；更换电脑需要重新登录并关联项目。
+推荐提交并推送 GitHub 的 main，由已关联的 Vercel 自动部署。CLI 手动发布也可用：在本机项目目录执行以下命令。CLI 登录信息放在被忽略的 `.cache/vercel-cli`；更换电脑需要重新登录并关联项目。
 
 ```powershell
 npm ci
@@ -50,7 +58,7 @@ $env:npm_config_registry = 'https://registry.npmjs.org'
 npx --yes vercel deploy --prod --yes --scope yhstsyyhstsy-8295 --global-config .cache/vercel-cli
 ```
 
-修改 Vercel 环境变量后也需要重新部署。成功后公开域名保持不变。源码已上传 GitHub；将来在 Vercel 连接仓库后，可以改为推送代码触发自动部署；无需把 Key 提交到仓库。
+修改 Vercel 环境变量后也需要重新部署。成功后公开域名保持不变。main 的新提交自动触发生产部署，其他分支可触发 Preview；预览环境未配置生产共享 Key，无需把 Key 提交到仓库。
 
 ## 当前边界
 

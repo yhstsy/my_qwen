@@ -1,32 +1,47 @@
 # 千问 web app 复刻
 
-参照 [千问官网](https://www.qianwen.com/) 制作，使用 TypeScript 语言进行开发，Node.js 提供本地服务，无第三方业务运行依赖。
+参照 [千问官网](https://www.qianwen.com/) 制作，前端使用 React + TypeScript + webpack，Node.js 提供模型 API 与本地生产服务。后端使用 Node 标准库，不依赖独立后端框架。
 
 **在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](docs/DEPLOYMENT.md)。项目组织、请求流程与实现边界见 [架构实现文档](docs/ARCHITECTURE.md)。
 
 ## 启动
 
-需要 Node.js 22.x。首次使用先安装锁定的开发依赖：
+需要 Node.js 22.15 或更高的 22.x 版本。首次使用先安装锁定的依赖：
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-打开 http://127.0.0.1:5173 。如端口被占用，可在 `.env` 中修改 `PORT`。
+打开 http://127.0.0.1:5173 。webpack-dev-server 默认使用 5173，Node API 默认使用 5174，浏览器通过开发服务器同源代理访问 `/api`。如端口被占用，可在 `.env` 中修改 `PORT` 和可选的 `API_PORT`（默认 `PORT + 1`）。
 
-`npm run dev` 会先编译，然后监听 TS 改动；修改前端代码后刷新页面即可，服务端改动会自动重启。`npm start` 用于一次构建后启动，不监听文件。现有 `qwen-*` 本地存储键名与数据格式保持不变。
+`npm run dev` 会先构建，然后启动 webpack-dev-server、React Fast Refresh、TS 编译监听与 Node API 监听。React 组件修改自动更新，兼容的修改会保留页面状态；CSS 修改自动刷新，服务端改动自动重启。`npm start` 构建后由单个 Node 服务提供 `dist/` 和 API，不监听文件。现有 `qwen-*` 本地存储键名与数据格式保持不变。
 
 | TypeScript 源码 | 用途 |
 | --- | --- |
-| `src/app.ts`、`src/chat.ts` | 页面交互、共享消息类型、输入校验与安全渲染 |
+| `src/client/main.tsx`、`App.tsx` | React 入口与页面协调 |
+| `src/client/components/`、`hooks/` | 页面组件、模型请求和浏览器生命周期 |
+| `src/client/state.ts`、`generation.ts`、`types.ts`、`data.ts` | 会话状态、生成逻辑、类型与静态定义 |
+| `src/chat.ts` | 共享消息类型、输入校验与安全渲染 |
 | `src/app-server.ts`、`api/*.ts` | Node 服务与 Vercel 函数入口 |
 | `scripts/build.ts`、`scripts/dev.ts` | 静态资源构建与开发监听 |
-| `tests/chat.test.ts`、`scripts/check-api.ts` | 自动测试与手动真实接口探测 |
+| `webpack.config.ts` | 开发/生产构建、Babel TSX 转换、HTML 和公开资源 |
+| `tests/*.test.ts`、`tests/*.test.tsx` | API、构建、状态竞态和 React 组件回归 |
+| `scripts/check-api.ts` | 手动真实接口探测，会消耗模型额度 |
 
-`public/` 保存 HTML、CSS 和图片；`tests/fixtures/` 保存测试样本；`docs/` 保存架构、部署记录和后续实施计划。根目录只保留项目说明、工程配置和平台要求的入口目录。
+根目录 `index.html` 为 HTML 模板，构建时自动注入 React 入口脚本；`public/` 只保存公开 CSS 和图片；`tests/fixtures/` 保存测试样本；`docs/` 保存架构、部署记录和后续实施计划。完整迁移步骤与验收见 [webpack 迁移计划](docs/WEBPACK_MIGRATION_PLAN.md)，此前方案见 [React 迁移记录](docs/REACT_MIGRATION_PLAN.md)。
 
-`tsconfig.json` 开启 `strict`。编译中间文件写入 `.build/`；`dist/` 仅包含 HTML、CSS、浏览器 JS 和图片。浏览器无法直接执行 TS，因此继续通过 `/app.js`、`/chat.js` 加载编译后的代码。上述生成目录均不提交 Git。
+`tsconfig.json` 开启 `strict` 与 TSX 支持。编译中间文件写入 `.build/`；webpack 使用 Babel 转换 TS/TSX，由 tsc 检查类型，将前端打包到 `dist/assets/index-<hash>.js`。`dist/` 仅包含公开 HTML、CSS、浏览器 JS、第三方许可文件和图片，生成目录均不提交 Git。生产构建不包含热更新客户端或源码映射。
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
+
+自动测试使用本地模拟供应商，不调用真实共享模型。当前工具链通过 18 项自动测试、类型检查、开发热更新、浏览器回归和 Vercel 本地生产构建。GitHub 的 `main` 已关联 Vercel，推送会触发生产部署；线上发布结果以对应提交的 Vercel 状态为准。
+
+依赖审计：生产依赖 `npm audit --omit=dev` 无已知漏洞。开发工具间接依赖的 `braces` 存在[尚无修复版本的漏洞](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)，开发服务只监听本机，代理使用固定函数匹配，不接受用户 glob；具体范围与处理见迁移验收记录。
 
 ## 已实现
 

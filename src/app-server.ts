@@ -17,8 +17,8 @@ const root = basename(parentRoot) === '.build' ? dirname(parentRoot) : parentRoo
 const envPath = resolve(root, '.env');
 if (existsSync(envPath)) process.loadEnvFile(envPath);
 
-const publicFiles = new Set(['index.html','styles.css','app.js','chat.js']);
-const contentTypes: Record<string,string> = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg'};
+const publicFiles = new Set(['index.html','styles.css']);
+const contentTypes: Record<string,string> = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.txt':'text/plain; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg'};
 
 export function resolvePublicPath(pathname: string): string | null {
   let path;
@@ -26,7 +26,7 @@ export function resolvePublicPath(pathname: string): string | null {
   if (path === '/') path = '/index.html';
   const name = path.replace(/^\/+/, '');
   if (!publicFiles.has(name) && !name.startsWith('assets/')) return null;
-  const directory = name === 'app.js' || name === 'chat.js' ? resolve(root,'.build/src') : resolve(root,'public');
+  const directory = resolve(root,'dist');
   const absolute = resolve(directory, name);
   return absolute.startsWith(directory + sep) && contentTypes[extname(absolute)] ? absolute : null;
 }
