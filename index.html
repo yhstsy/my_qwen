@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f7f8">
+  <meta name="description" content="千问界面复刻：日常问答、工作助理与本地对话管理。">
+  <title>千问 - AI 助手</title>
+  <link rel="icon" href="/assets/qwen.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div id="app" class="app">
+    <div class="sidebar-scrim" id="sidebar-scrim"></div>
+    <aside class="sidebar" aria-label="侧边栏">
+      <div class="sidebar-header">
+        <button class="brand" id="brand" aria-label="千问，返回首页"><img src="/assets/wordmark.svg" width="38" height="20" alt="千问"></button>
+        <button class="icon-button collapse-button" data-action="sidebar" aria-label="收起侧边栏" title="收起侧边栏" data-icon="sidebar"></button>
+      </div>
+      <div class="mode-switch" role="tablist" aria-label="对话模式">
+        <button role="tab" id="daily-tab" aria-selected="true" data-mode="daily">日常</button>
+        <button role="tab" id="work-tab" aria-selected="false" data-mode="work">工作</button>
+      </div>
+      <nav class="navigation" aria-label="主要功能">
+        <div class="new-chat-row"><button class="nav-item" id="new-chat"><span data-icon="plus"></span><span id="new-label">新对话</span></button><button class="icon-button" id="search-history" aria-label="搜索对话" title="搜索对话" data-icon="search-chat"></button></div>
+        <div id="daily-nav">
+          <button class="nav-item" data-panel="space"><span data-icon="files"></span>云空间</button>
+          <button class="nav-item" data-panel="create"><span data-icon="create"></span>千问创作</button>
+        </div>
+        <div id="work-nav" hidden>
+          <button class="nav-item" data-panel="skills"><span data-icon="puzzle"></span>技能</button>
+          <button class="nav-item" data-panel="connect"><span data-icon="connect"></span>连接</button>
+          <button class="nav-item" data-panel="projects"><span data-icon="folder"></span>项目</button>
+          <button class="nav-item" data-dialog="download"><span data-icon="monitor"></span>本地工作助理</button>
+        </div>
+        <div class="nav-caption">定时任务</div>
+        <button class="nav-item" data-dialog="task"><span data-icon="plus"></span>新定时任务</button>
+        <div id="task-list" class="task-list"></div>
+      </nav>
+      <div class="history" id="history" aria-label="历史对话"><p class="empty-history">暂无对话</p></div>
+      <div class="sidebar-footer"><button class="nav-item" data-dialog="about"><span data-icon="info"></span>关于千问</button><button class="icon-button" id="settings-button" aria-label="外观设置" title="外观设置" data-icon="download"></button></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left"><button class="icon-button expand-button" data-action="sidebar" aria-label="展开侧边栏" data-icon="sidebar"></button><button class="model-button" id="model-button" aria-haspopup="menu" aria-expanded="false"><span id="model-name">Qwen3.7-千问</span><span class="small-icon" data-icon="chevron"></span></button></div>
+        <div class="header-actions"><a class="header-link api-link" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer"><span data-icon="api"></span>API 服务</a><button class="download-button" data-dialog="download" aria-label="下载电脑端"><span data-icon="windows"></span><span>下载电脑端</span></button><button class="login-button" data-dialog="login">登录</button></div>
+      </header>
+      <section class="home" id="home" aria-label="对话首页">
+        <div class="welcome"><img id="welcome-icon" src="/assets/qwen.svg" alt="" width="48" height="48"><h1 id="welcome-title">你好，我是千问</h1></div>
+        <div class="composer-wrap" id="composer-wrap">
+          <form class="composer" id="composer">
+            <div id="attachments" class="attachments" aria-label="已选择的附件" hidden></div>
+            <label for="prompt" class="sr-only">向千问提问</label>
+            <textarea id="prompt" rows="1" placeholder="向千问提问" maxlength="30000" enterkeyhint="send"></textarea>
+            <div class="composer-toolbar">
+              <button type="button" class="icon-button attach-button" id="attach-button" aria-label="添加附件" title="添加附件" aria-haspopup="menu" aria-expanded="false" data-icon="plus"></button>
+              <div class="tools daily-tools" id="daily-tools">
+                <button type="button" class="tool-button" id="speed-button" aria-haspopup="menu" aria-expanded="false"><span data-icon="bolt"></span><span id="speed-label">快速</span><span class="tiny-icon" data-icon="chevron"></span></button>
+                <button type="button" class="tool-button assistant-tool" data-tool="工作助理" aria-pressed="false"><span data-icon="spark"></span>工作助理<span class="cloud-tag">云端</span></button>
+                <button type="button" class="tool-button video-tool" data-tool="AI生视频" aria-pressed="false"><span data-icon="video"></span>AI生视频</button>
+                <button type="button" class="tool-button ppt-tool" data-tool="PPT创作" aria-pressed="false"><span data-icon="presentation"></span>PPT创作</button>
+                <button type="button" class="tool-button image-tool" data-tool="AI生图" aria-pressed="false"><span data-icon="image"></span>AI生图</button>
+                <button type="button" class="tool-button" id="more-button" aria-haspopup="menu" aria-expanded="false"><span data-icon="more"></span>更多</button>
+              </div>
+              <div class="tools work-tools" id="work-tools" hidden>
+                <button type="button" class="tool-button" id="cloud-button"><span data-icon="cloud"></span>云端<span class="tiny-icon" data-icon="chevron"></span></button>
+                <button type="button" class="tool-button" data-panel="connect"><span data-icon="connect"></span>连接<span class="tiny-icon" data-icon="chevron"></span></button>
+                <button type="button" class="tool-button" data-panel="skills"><span data-icon="puzzle"></span>技能<span class="tiny-icon" data-icon="chevron"></span></button>
+                <button type="button" class="tool-button work-model" id="work-model-button">Qwen3.7-Max<span class="tiny-icon" data-icon="chevron"></span></button>
+              </div>
+              <div class="send-actions"><button type="button" class="icon-button voice-button" id="voice-button" aria-label="语音输入" title="语音输入" data-icon="mic"></button><button type="submit" class="send-button" id="send-button" aria-label="发送消息" disabled data-icon="arrow-up"></button></div>
+            </div>
+          </form>
+          <button class="project-select" id="project-select" hidden><span data-icon="folder"></span><span id="project-label">选择工作项目</span><span class="tiny-icon" data-icon="chevron"></span></button>
+        </div>
+        <div class="promo-wrap" id="promo-wrap">
+          <div class="promo-dots" aria-label="轮播切换"><button aria-label="切换到第 1 个" data-slide="0"></button><button aria-label="切换到第 2 个" data-slide="1"></button><button aria-label="切换到第 3 个" class="active" data-slide="2"></button></div>
+          <div class="promo-card"><img id="promo-image" src="/assets/banner-notes.webp" alt="千问录音纪要" width="148" height="72"><div class="promo-copy"><p id="promo-title">千问一键生成录音纪要</p><span id="promo-description">断网也能稳定录，纪要自动整理，重要内容一句不漏</span></div><button class="promo-cta" id="promo-cta">立即下载体验</button><button class="promo-close" id="promo-close" aria-label="关闭推荐" data-icon="close"></button></div>
+        </div>
+        <div class="work-suggestions" id="work-suggestions" hidden><p>从这里开始</p><button data-prompt="解读诺贝尔物理学奖获奖理论，生成中小学生科普PPT"><span class="suggestion-icon orange">P</span>解读诺贝尔获奖理论，生成中小学生科普PPT</button><button data-prompt="创作一部无限流题材的 AI 短剧剧本"><span class="suggestion-icon yellow">✎</span>创作无限流题材AI短剧剧本</button><button data-prompt="解析岗位要求，梳理简历撰写核心要点"><span class="suggestion-icon purple">◕</span>解析岗位要求，梳理简历撰写核心要点</button></div>
+      </section>
+      <section class="conversation" id="conversation" aria-label="当前对话" hidden><div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions"></div><button class="scroll-bottom icon-button" id="scroll-bottom" aria-label="滚动到底部" data-icon="arrow-down" hidden></button><div class="conversation-composer" id="conversation-composer"></div></section>
+      <section class="feature-panel" id="feature-panel" hidden></section>
+      <footer class="legal" id="legal">继续使用即表示您同意 <a href="https://terms.alicdn.com/legal-agreement/terms/c_end_product_protocol/20231011201348415/20231011201348415.html" target="_blank" rel="noopener noreferrer">用户协议</a> 和 <a href="https://terms.alicdn.com/legal-agreement/terms/privacy_policy_full/20231011201849846/20231011201849846.html" target="_blank" rel="noopener noreferrer">隐私政策</a></footer>
+    </main>
+  </div>
+  <div class="popover" id="popover" role="menu" hidden></div>
+  <dialog id="dialog" class="dialog"><div id="dialog-content"></div><button class="icon-button dialog-close" aria-label="关闭弹窗" data-icon="close"></button></dialog>
+  <input type="file" id="file-input" multiple accept=".txt,.md,.csv,.json,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp" hidden>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
