@@ -1,8 +1,8 @@
-# 千问网站界面复刻
+# 千问 web app 复刻
 
-参照 [千问官网](https://www.qianwen.com/) 2026-10-11 可见的桌面首页与工作模式制作。使用原生 HTML、CSS 和 TypeScript，Node.js 提供本地服务，无第三方业务运行依赖。TypeScript 和 Node.js 类型定义仅作为开发、构建依赖。
+参照 [千问官网](https://www.qianwen.com/) 制作，使用 TypeScript 语言进行开发，Node.js 提供本地服务，无第三方业务运行依赖。
 
-**在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](docs/DEPLOYMENT.md)。项目组织、请求流程与实现边界见 [架构实现文档](docs/ARCHITECTURE.md)，后续功能方案见 [实施计划](docs/IMPLEMENTATION_PLAN.md)。
+**在线体验：[打开千问助手](https://my-qwen-weld.vercel.app/)**。已部署到 Vercel；当前共享模型可能因额度或限频返回 429，详细验收与更新方法见 [部署记录](docs/DEPLOYMENT.md)。项目组织、请求流程与实现边界见 [架构实现文档](docs/ARCHITECTURE.md)。
 
 ## 启动
 
@@ -80,7 +80,3 @@ npm run build
 ```
 
 `npm test` 会先完整编译，再运行编译后的 TS 测试。`dist/` 是静态页面。需要真实对话时应通过 `npm start` 使用 Node 服务，或按上面的 Vercel 方案同时部署 `api/` 函数，不要只发布静态文件。
-
-## 边界
-
-此项目并非千问官方网站，品牌与参考图片归原权利方所有。账号登录、云同步、生图、生视频、PPT 文件生成、第三方应用连接及后台定时任务未接入官方服务。PDF、Office、图片等附件仅展示文件记录，不会声称已解析；仅纯文本附件支持作为对话输入。云空间只保存文件元数据，文件本身不会持久化上传。历史记录位于当前浏览器 localStorage，清理浏览器数据后会丢失。真实 API 调用会将当前对话及可读文本附件发给配置的模型服务。
